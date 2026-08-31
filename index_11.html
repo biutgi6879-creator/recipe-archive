@@ -1,0 +1,2338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Recipe Archive</title>
+<meta name="description" content="사진의 EXIF를 읽어 카메라·조리개·셔터스피드·ISO와 후지필름 필름 시뮬레이션 레시피를 담은 프레임을 만듭니다. 사진은 기기 밖으로 전송되지 않습니다." />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#EFEEEA" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0E1013" media="(prefers-color-scheme: dark)" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Recipe Archive" />
+<meta property="og:description" content="EXIF와 후지필름 필름 시뮬레이션 레시피를 읽어 프레임을 만듭니다. 브라우저 안에서만 처리됩니다." />
+<meta property="og:locale" content="ko_KR" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230E1013'/%3E%3Crect x='7' y='7' width='18' height='14' fill='none' stroke='%23C8C2B6' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='25' r='1.6' fill='%23C8C2B6'/%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200;300;400;500&family=Nanum+Gothic+Coding:wght@400;700&family=M+PLUS+1+Code:wght@200;300;400;500&display=swap" />
+<style>
+  :root{
+    /* Graphite bench, cool and desaturated — no neon, no brass. */
+    --bg:#0E1013;
+    --surface:#15181C;
+    --surface-2:#1B1F24;
+    --well:#0A0C0E;
+    --hairline:rgba(255,255,255,0.075);
+    --hairline-2:rgba(255,255,255,0.14);
+    --ink:#E7E8EA;
+    --muted:#7C828B;
+    --muted-2:#5A606A;
+    /* Signature: overridden at runtime with the loaded photo's
+       film-simulation colour. Bone is the no-film-loaded default. */
+    --accent:#C8C2B6;
+    --accent-default:#C8C2B6;
+    /* text that sits ON an --ink-filled surface (the export button) */
+    --on-ink:#0E1013;
+    --danger:#D9695C;
+    /* Latin from JetBrains Mono; Hangul from Nanum Gothic Coding; kana and
+       kanji from M PLUS 1 Code. The browser picks per character, so Korean
+       and Japanese stay monospaced and visually matched instead of dropping
+       to a proportional system face. All three are SIL OFL 1.1. */
+    --mono:'JetBrains Mono', 'Nanum Gothic Coding', 'M PLUS 1 Code',
+           ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+           'DejaVu Sans Mono', 'Liberation Mono', 'D2Coding', 'Courier New', monospace;
+
+    --r:3px;
+    --pad:18px;
+  }
+  /* Follows the operating system. The palette inverts, but the accent is
+     still whatever film the loaded photo was shot on. */
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#EFEEEA;
+      --surface:#FAF9F6;
+      --surface-2:#E7E5DF;
+      --well:#E3E1DB;
+      --hairline:rgba(0,0,0,0.10);
+      --hairline-2:rgba(0,0,0,0.20);
+      --ink:#191A1C;
+      --muted:#5D626A;
+      --muted-2:#8B9099;
+      --accent:#6F6A5F;
+      --accent-default:#6F6A5F;
+      --on-ink:#FAF9F6;
+      --danger:#B4463A;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-weight:300;
+    font-size:13px;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  ::selection{background:var(--accent);color:var(--on-ink);}
+
+  /* Quiet scrollbars — the rails scroll a lot. */
+  .rail::-webkit-scrollbar,.thumbs::-webkit-scrollbar{width:9px;}
+  .rail::-webkit-scrollbar-thumb,.thumbs::-webkit-scrollbar-thumb{
+    background:var(--hairline-2);border-radius:9px;
+    border:3px solid transparent;background-clip:content-box;
+  }
+  .rail::-webkit-scrollbar-track,.thumbs::-webkit-scrollbar-track{background:transparent;}
+
+  :focus-visible{outline:1px solid var(--accent);outline-offset:2px;}
+
+  /* ---------- eyebrow label, used everywhere ---------- */
+  .eyebrow{
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:0.2em;
+    color:var(--muted-2);
+    font-weight:400;
+    margin:0 0 12px;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:16px;flex-wrap:wrap;
+    padding:0 clamp(14px,3vw,28px);
+    height:52px;
+    border-bottom:1px solid var(--hairline);
+  }
+  header .brand{display:flex;align-items:center;gap:9px;}
+  header .brand .dot{
+    width:5px;height:5px;border-radius:50%;
+    background:var(--accent);
+    display:inline-block;
+    transition:background .4s ease;
+  }
+  header h1{
+    font-size:12px;font-weight:400;letter-spacing:0.34em;margin:0;
+    text-transform:uppercase;
+  }
+  header .tag{
+    font-size:10px;color:var(--muted-2);letter-spacing:0.06em;
+  }
+  header .count{
+    font-size:10px;color:var(--muted-2);letter-spacing:0.12em;
+    text-transform:uppercase;
+  }
+  header .head-right{display:flex;align-items:center;gap:16px;}
+  .langs{display:flex;gap:2px;}
+  .langs button{
+    background:none;border:none;padding:3px 6px;cursor:pointer;
+    font-family:var(--mono);font-weight:300;font-size:10px;
+    color:var(--muted-2);letter-spacing:0.06em;border-radius:2px;
+  }
+  .langs button:hover{color:var(--ink);}
+  .langs button.active{color:var(--accent);}
+  .credit-sep{color:var(--muted-2);margin:0 6px;}
+  footer a.linklike{text-decoration:none;}
+  @media (max-width:820px){ header .tag{display:none;} }
+
+  /* ---------- layout ---------- */
+  main{
+    display:grid;
+    grid-template-columns:236px minmax(0,1fr) 328px;
+    align-items:stretch;
+    min-height:calc(100vh - 52px);
+  }
+  .rail{
+    padding:20px var(--pad) 28px;
+    position:sticky;top:0;
+    max-height:100vh;
+    overflow-y:auto;
+    scrollbar-width:thin;
+  }
+  .rail.left{border-right:1px solid var(--hairline);}
+  .rail.right{border-left:1px solid var(--hairline);}
+  @media (max-width:1080px){
+    main{grid-template-columns:1fr;}
+    .rail{position:static;max-height:none;}
+    .rail.left,.rail.right{border:none;border-top:1px solid var(--hairline);}
+  }
+
+  /* section divider inside a rail */
+  .sect{padding-top:22px;margin-top:22px;border-top:1px solid var(--hairline);}
+  .sect:first-of-type{padding-top:0;margin-top:0;border-top:none;}
+
+  /* ---------- left: uploader ---------- */
+  .dropzone{
+    display:block;
+    border:1px dashed var(--hairline-2);
+    border-radius:var(--r);
+    padding:26px 12px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .18s, background .18s;
+  }
+  .dropzone:hover,.dropzone.drag{
+    border-color:var(--accent);
+    background:color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .dropzone .plus{
+    font-size:15px;color:var(--muted);line-height:1;letter-spacing:0.1em;
+  }
+  .dropzone .hint{
+    font-size:10px;color:var(--muted-2);margin-top:10px;line-height:1.7;
+    letter-spacing:0.04em;
+  }
+  .dropzone input{display:none;}
+
+  .notice{
+    margin:12px 0 0;padding:9px 10px;
+    border-left:2px solid var(--accent);
+    background:color-mix(in srgb, var(--accent) 8%, transparent);
+    font-size:10px;line-height:1.85;color:var(--muted);
+    letter-spacing:0.02em;
+  }
+  .thumbs{
+    margin-top:10px;display:flex;flex-direction:column;
+    max-height:52vh;overflow-y:auto;scrollbar-width:thin;
+  }
+  .thumb{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 2px;
+    border-bottom:1px solid var(--hairline);
+    cursor:pointer;position:relative;
+  }
+  .thumb::before{
+    content:"";position:absolute;left:-18px;top:0;bottom:0;
+    width:1px;background:transparent;
+  }
+  .thumb.active::before{background:var(--accent);}
+  .thumb.active .name{color:var(--ink);}
+  .thumb img{
+    width:32px;height:32px;object-fit:cover;border-radius:2px;background:#000;
+  }
+  .thumb-empty{
+    width:32px;height:32px;border-radius:2px;flex:0 0 auto;
+    background:var(--surface-2);
+  }
+  .thumb .name{
+    font-size:11px;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
+    letter-spacing:0.02em;
+  }
+  .thumb .rm{
+    color:var(--muted-2);background:none;border:none;
+    cursor:pointer;font-size:12px;padding:2px 4px;line-height:1;
+  }
+  .thumb .rm:hover{color:var(--danger);}
+
+  /* ---------- center: preview ---------- */
+  .preview{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:18px;padding:28px clamp(14px,3vw,40px);
+    background:var(--well);
+    min-height:calc(100vh - 52px);
+  }
+  /* Shrink-wraps the canvas so the registration marks hug the actual
+     frame, whatever ratio it is. */
+  .canvas-wrap{
+    position:relative;display:flex;max-width:100%;
+  }
+  /* Registration marks — hairline corner ticks, like a contact sheet. */
+  .canvas-wrap::before,.canvas-wrap::after,
+  .canvas-wrap .c2,.canvas-wrap .c3{
+    content:"";position:absolute;width:12px;height:12px;
+    border-color:var(--hairline-2);pointer-events:none;
+  }
+  .canvas-wrap::before{top:-7px;left:-7px;border-top:1px solid;border-left:1px solid;}
+  .canvas-wrap::after{bottom:-7px;right:-7px;border-bottom:1px solid;border-right:1px solid;}
+  .canvas-wrap .c2{top:-7px;right:-7px;border-top:1px solid var(--hairline-2);border-right:1px solid var(--hairline-2);}
+  .canvas-wrap .c3{bottom:-7px;left:-7px;border-bottom:1px solid var(--hairline-2);border-left:1px solid var(--hairline-2);}
+
+  /* The canvas carries its own intrinsic ratio via its width/height
+     attributes, so bounding BOTH axes lets a wide 16:9 frame grow to the
+     full column width while a tall 9:16 one is capped by height instead.
+     Fixing only the width made landscape frames tiny. */
+  #canvas{
+    display:block;background:var(--surface);
+    width:auto;height:auto;
+    max-width:min(100%, 980px);
+    max-height:calc(100vh - 190px);
+  }
+  .placeholder{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--muted-2);font-size:11px;text-align:center;padding:20px;
+    line-height:1.9;letter-spacing:0.04em;pointer-events:none;
+  }
+
+  .nav{
+    display:flex;align-items:center;gap:16px;
+    font-size:10px;color:var(--muted-2);letter-spacing:0.14em;
+  }
+  .nav button{
+    background:none;color:var(--muted);border:1px solid var(--hairline-2);
+    border-radius:var(--r);width:26px;height:26px;cursor:pointer;font-size:12px;
+    line-height:1;transition:border-color .15s,color .15s;
+  }
+  .nav button:hover:not(:disabled){border-color:var(--accent);color:var(--ink);}
+  .nav button:disabled{opacity:.25;cursor:default;}
+
+  /* ---------- right: controls ---------- */
+  .field{margin-bottom:11px;}
+  .field label{
+    display:block;font-size:9.5px;color:var(--muted-2);margin-bottom:5px;
+    letter-spacing:0.14em;text-transform:uppercase;
+  }
+  .field input{
+    width:100%;background:transparent;border:none;
+    border-bottom:1px solid var(--hairline-2);
+    color:var(--ink);border-radius:0;padding:6px 1px;font-size:12.5px;
+    font-family:var(--mono);font-weight:300;
+    transition:border-color .15s;
+  }
+  .field input::placeholder{color:var(--muted-2);}
+  .field input:focus{outline:none;border-bottom-color:var(--accent);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+
+  /* readout strip — the parsed exposure, stated plainly */
+  .lcd-strip{
+    display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;
+    padding:0 0 14px;margin-bottom:16px;
+    border-bottom:1px solid var(--hairline);
+    font-size:15px;color:var(--ink);letter-spacing:0.04em;font-weight:200;
+  }
+  .lcd-strip .sep{color:var(--muted-2);font-size:11px;}
+
+  /* buttons */
+  .mode-row{display:flex;gap:6px;margin-bottom:12px;}
+  .mode-btn,.ratio-btn,.pos-btn,.recipe-pos-btn{
+    border:1px solid var(--hairline-2);background:transparent;
+    color:var(--muted);cursor:pointer;font-family:var(--mono);font-weight:300;
+    border-radius:var(--r);letter-spacing:0.06em;
+    transition:border-color .15s,color .15s,background .15s;
+  }
+  .mode-btn{flex:1;padding:8px 4px;font-size:11px;}
+  .ratio-btn,.pos-btn,.recipe-pos-btn{padding:7px 9px;font-size:10.5px;}
+  .mode-btn:hover,.ratio-btn:hover,.pos-btn:hover,.recipe-pos-btn:hover{color:var(--ink);}
+  .mode-btn.active,.ratio-btn.active,.pos-btn.active,.recipe-pos-btn.active{
+    border-color:var(--accent);
+    color:var(--accent);
+    background:color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+  .ratio-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  /* how well each output ratio suits the loaded photo */
+  .ratio-btn.fits:not(.active){border-color:color-mix(in srgb, var(--accent) 55%, var(--hairline-2));}
+  .ratio-btn.fits::after{content:"·";margin-left:5px;color:var(--accent);}
+  .ratio-btn.poor:not(.active){opacity:.45;}
+  .anchor-row{align-items:center;margin-top:-4px;}
+  .anchor-lead{
+    font-size:9.5px;color:var(--muted-2);letter-spacing:0.14em;
+    text-transform:uppercase;width:100%;margin-bottom:2px;
+  }
+  .shooting-anchor-btn,.recipe-anchor-btn{
+    padding:6px 9px;font-size:10px;
+    border:1px solid var(--hairline-2);background:transparent;
+    color:var(--muted);cursor:pointer;font-family:var(--mono);font-weight:300;
+    border-radius:var(--r);letter-spacing:0.06em;
+    transition:border-color .15s,color .15s,background .15s;
+  }
+  .shooting-anchor-btn:hover,.recipe-anchor-btn:hover{color:var(--ink);}
+  .shooting-anchor-btn.active,.recipe-anchor-btn.active{
+    border-color:var(--accent);color:var(--accent);
+    background:color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+  .ratio-grid.disabled{opacity:.3;pointer-events:none;}
+
+  .toggle-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    font-size:11px;color:var(--muted);margin-bottom:14px;letter-spacing:0.03em;
+  }
+  .toggle-row input,.apply-all input{
+    accent-color:var(--accent);width:13px;height:13px;cursor:pointer;
+  }
+  .apply-all{
+    font-size:10px;color:var(--muted-2);display:flex;gap:7px;align-items:center;
+    margin:-2px 0 16px;letter-spacing:0.03em;
+  }
+  .apply-all label{cursor:pointer;}
+
+  /* recipe readout — a spec sheet, right-aligned values */
+  .recipe-box{
+    display:grid;grid-template-columns:auto 1fr;gap:7px 12px;
+    padding:12px 0 0;margin-bottom:14px;
+    border-top:1px solid var(--hairline);
+    font-size:11px;
+  }
+  .recipe-box .rk{color:var(--muted-2);letter-spacing:0.04em;}
+  .recipe-box .rv{color:var(--ink);text-align:right;letter-spacing:0.02em;}
+  .recipe-box .rk.hero{
+    color:var(--muted-2);font-size:11px;
+    display:flex;align-items:center;gap:7px;
+  }
+  .recipe-box .rk.hero::before{
+    content:"";width:3px;height:11px;background:var(--accent);flex:0 0 auto;
+  }
+  .recipe-box .rv.hero{color:var(--accent);font-size:12.5px;font-weight:400;}
+
+  /* export */
+  .convert-btn{
+    width:100%;background:var(--ink);color:var(--on-ink);
+    border:none;border-radius:var(--r);padding:12px;
+    font-family:var(--mono);font-weight:400;font-size:11px;
+    letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;
+    margin-top:18px;transition:opacity .15s;
+  }
+  .convert-btn:hover{opacity:.86;}
+  .convert-btn:disabled{opacity:.18;cursor:default;}
+  .subnote{
+    font-size:9.5px;color:var(--muted-2);margin-top:9px;text-align:center;
+    line-height:1.7;letter-spacing:0.03em;
+  }
+
+  footer{
+    text-align:center;padding:18px clamp(14px,4vw,40px);
+    color:var(--muted-2);font-size:9.5px;
+    letter-spacing:0.08em;border-top:1px solid var(--hairline);
+  }
+  footer p{margin:0 0 6px;}
+  footer p:last-child{margin-bottom:0;}
+  footer .legal{
+    max-width:760px;margin-left:auto;margin-right:auto;
+    line-height:1.8;opacity:.72;letter-spacing:0.02em;
+  }
+
+  /* footer link + privacy dialog */
+  .linklike{
+    background:none;border:none;padding:0;cursor:pointer;
+    font-family:var(--mono);font-size:9.5px;font-weight:300;
+    color:var(--muted);letter-spacing:0.08em;
+    border-bottom:1px solid var(--hairline-2);
+  }
+  .linklike:hover{color:var(--ink);border-bottom-color:var(--accent);}
+
+  dialog#privacyDialog{
+    max-width:640px;width:calc(100% - 32px);
+    max-height:82vh;overflow-y:auto;
+    background:var(--surface);color:var(--ink);
+    border:1px solid var(--hairline-2);border-radius:var(--r);
+    padding:clamp(20px,4vw,32px);
+    font-family:var(--mono);font-weight:300;
+  }
+  dialog#privacyDialog::backdrop{background:rgba(0,0,0,0.62);}
+  dialog#privacyDialog h2{
+    font-size:12px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;
+    margin:0 0 6px;
+  }
+  dialog#privacyDialog .updated{
+    font-size:9.5px;color:var(--muted-2);letter-spacing:0.06em;margin:0 0 22px;
+  }
+  dialog#privacyDialog h3{
+    font-size:10.5px;font-weight:400;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--muted-2);margin:22px 0 8px;
+    padding-top:14px;border-top:1px solid var(--hairline);
+  }
+  dialog#privacyDialog p,dialog#privacyDialog li{
+    font-size:11.5px;line-height:2;color:var(--muted);margin:0 0 9px;
+    letter-spacing:0.01em;
+  }
+  dialog#privacyDialog strong{color:var(--ink);font-weight:400;}
+  dialog#privacyDialog ul{margin:0 0 9px;padding-left:18px;}
+  dialog#privacyDialog li{margin-bottom:3px;}
+  dialog#privacyDialog .convert-btn{margin-top:24px;}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important;animation:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>Recipe Archive</h1>
+  </div>
+  <div class="tag" data-i18n="tagline">EXIF를 읽어 프레임을 만듭니다 · 사진은 기기 밖으로 나가지 않습니다</div>
+  <div class="head-right">
+    <div class="langs" id="langs" role="group" aria-label="Language">
+      <button type="button" data-lang="ko">한국어</button>
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="ja">日本語</button>
+    </div>
+    <div class="count"><span id="loadedCount">0</span> <span data-i18n="loaded">loaded</span></div>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT: uploader -->
+  <section class="rail left">
+    <p class="eyebrow" data-i18n="images">Images</p>
+    <label class="dropzone" id="dropzone">
+      <div class="plus">+</div>
+      <div class="hint" data-i18n-html="dropHint">사진을 끌어놓거나 클릭<br>JPG · PNG · WEBP · 여러 장 가능</div>
+      <input type="file" id="fileInput" accept="image/*" multiple />
+    </label>
+    <p class="notice" id="notice" hidden></p>
+    <div class="thumbs" id="thumbs"></div>
+  </section>
+
+  <!-- CENTER: preview -->
+  <section class="preview">
+    <div class="canvas-wrap">
+      <span class="c2"></span><span class="c3"></span>
+      <canvas id="canvas" width="1440" height="1800"></canvas>
+      <div class="placeholder" id="placeholder" data-i18n-html="placeholder">사진을 불러오면<br>여기에 프레임이 나타납니다</div>
+    </div>
+    <div class="nav">
+      <button id="prevBtn">‹</button>
+      <span class="mono"><span id="curIdx">0</span> / <span id="totalIdx">0</span></span>
+      <button id="nextBtn">›</button>
+    </div>
+  </section>
+
+  <!-- RIGHT: fields -->
+  <aside class="rail right">
+    <p class="eyebrow" data-i18n="cameraInfo">Camera info</p>
+
+    <div class="toggle-row">
+      <span data-i18n="showCameraInfo">촬영 정보 표시</span>
+      <input type="checkbox" id="infoEnabled" checked />
+    </div>
+
+    <div class="lcd-strip" id="lcdStrip">
+      <span id="lcdF">f/--</span><span class="sep">·</span>
+      <span id="lcdSS">--s</span><span class="sep">·</span>
+      <span id="lcdISO">ISO --</span>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label data-i18n="maker">Maker</label>
+        <input type="text" id="fMaker" placeholder="Canon" />
+      </div>
+      <div class="field">
+        <label data-i18n="model">Model</label>
+        <input type="text" id="fModel" placeholder="EOS R5" />
+      </div>
+    </div>
+
+    <div class="row3">
+      <div class="field">
+        <label>f /</label>
+        <input type="text" id="fFnum" placeholder="1.8" />
+      </div>
+      <div class="field">
+        <label>SS</label>
+        <input type="text" id="fSS" placeholder="1/250" />
+      </div>
+      <div class="field">
+        <label>ISO</label>
+        <input type="text" id="fISO" placeholder="400" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="date">Date</label>
+      <input type="text" id="fDate" placeholder="2026.08.19" />
+    </div>
+
+    <div class="field">
+      <label data-i18n="photoBy">Photo by</label>
+      <input type="text" id="fPhotoBy" placeholder="@yourname" />
+    </div>
+    <div class="apply-all">
+      <input type="checkbox" id="applyPhotoByAll" />
+      <label for="applyPhotoByAll" data-i18n="applyPhotoByAll">Photo by를 모든 이미지에 적용</label>
+    </div>
+
+    <div id="recipeSection" class="sect" style="display:none;">
+      <p class="eyebrow" data-i18n="filmSimulation">Film simulation</p>
+      <div class="recipe-box" id="recipeBox"></div>
+      <div class="toggle-row">
+        <span data-i18n="showRecipe">프레임에 레시피 표시</span>
+        <input type="checkbox" id="showRecipe" checked />
+      </div>
+      <div class="ratio-grid" id="recipePosRow">
+        <button class="recipe-pos-btn active" data-position="bottom" data-i18n="pos_bottom">Bottom</button>
+        <button class="recipe-pos-btn" data-position="top" data-i18n="pos_top">Top</button>
+        <button class="recipe-pos-btn" data-position="left" data-i18n="pos_left">Left</button>
+        <button class="recipe-pos-btn" data-position="right" data-i18n="pos_right">Right</button>
+        <button class="recipe-pos-btn" data-position="overlay" data-i18n="pos_overlay">Overlay</button>
+      </div>
+      <div class="ratio-grid anchor-row" id="recipeAnchorRow" hidden>
+        <span class="anchor-lead" data-i18n="inPhotoPos">사진 안 위치</span>
+        <button class="recipe-anchor-btn active" data-anchor="bottom-left" data-i18n="anc_bottom-left">Bot L</button>
+        <button class="recipe-anchor-btn" data-anchor="bottom-right" data-i18n="anc_bottom-right">Bot R</button>
+        <button class="recipe-anchor-btn" data-anchor="top-left" data-i18n="anc_top-left">Top L</button>
+        <button class="recipe-anchor-btn" data-anchor="top-right" data-i18n="anc_top-right">Top R</button>
+      </div>
+      <div class="apply-all">
+        <input type="checkbox" id="applyRecipePosAll" />
+        <label for="applyRecipePosAll"><span data-i18n="applyPosAll">이 위치를 모든 이미지에 적용</span></label>
+      </div>
+    </div>
+
+    <div class="sect"></div>
+    <p class="eyebrow" data-i18n="cameraInfoPlacement">Camera info placement</p>
+    <div class="ratio-grid" id="shootingPosRow">
+      <button class="pos-btn active" data-position="bottom" data-i18n="pos_bottom">Bottom</button>
+      <button class="pos-btn" data-position="top" data-i18n="pos_top">Top</button>
+      <button class="pos-btn" data-position="left" data-i18n="pos_left">Left</button>
+      <button class="pos-btn" data-position="right" data-i18n="pos_right">Right</button>
+      <button class="pos-btn" data-position="overlay" data-i18n="pos_overlay">Overlay</button>
+    </div>
+    <div class="ratio-grid anchor-row" id="shootingAnchorRow" hidden>
+      <span class="anchor-lead" data-i18n="inPhotoPos">사진 안 위치</span>
+      <button class="shooting-anchor-btn active" data-anchor="bottom-left" data-i18n="anc_bottom-left">Bot L</button>
+      <button class="shooting-anchor-btn" data-anchor="bottom-right" data-i18n="anc_bottom-right">Bot R</button>
+      <button class="shooting-anchor-btn" data-anchor="top-left" data-i18n="anc_top-left">Top L</button>
+      <button class="shooting-anchor-btn" data-anchor="top-right" data-i18n="anc_top-right">Top R</button>
+    </div>
+    <div class="apply-all">
+      <input type="checkbox" id="applyShootingPosAll" />
+      <label for="applyShootingPosAll"><span data-i18n="applyPosAll">이 위치를 모든 이미지에 적용</span></label>
+    </div>
+
+    <div class="sect"></div>
+    <p class="eyebrow" id="ratioHeading" data-i18n="outputRatio">Output ratio</p>
+    <div class="ratio-grid" id="ratioGrid">
+      <button class="ratio-btn" data-ratio="1:1">1:1</button>
+      <button class="ratio-btn active" data-ratio="4:5">4:5</button>
+      <button class="ratio-btn" data-ratio="5:4">5:4</button>
+      <button class="ratio-btn" data-ratio="3:4">3:4</button>
+      <button class="ratio-btn" data-ratio="4:3">4:3</button>
+      <button class="ratio-btn" data-ratio="9:16">9:16</button>
+      <button class="ratio-btn" data-ratio="16:9">16:9</button>
+    </div>
+    <div class="apply-all">
+      <input type="checkbox" id="applyRatioAll" />
+      <label for="applyRatioAll"><span data-i18n="applyRatioAll">이 비율을 모든 이미지에 적용</span></label>
+    </div>
+
+    <div class="sect"></div>
+    <p class="eyebrow" data-i18n="mat">Mat</p>
+    <div class="mode-row">
+      <button class="mode-btn active" data-mode="white" data-i18n="matWhite">White</button>
+      <button class="mode-btn" data-mode="black" data-i18n="matBlack">Black</button>
+    </div>
+    <div class="apply-all">
+      <input type="checkbox" id="applyModeAll" />
+      <label for="applyModeAll"><span data-i18n="applyMatAll">이 모드를 모든 이미지에 적용</span></label>
+    </div>
+
+    <button class="convert-btn" id="convertBtn" data-i18n="export" disabled>Export</button>
+    <div class="subnote" id="outputNote">선택한 비율에 맞춰 PNG로 저장됩니다 (긴 변 기준 3840px)</div>
+  </aside>
+</main>
+
+<footer>
+  <p data-i18n="footerPrivacy">사진과 촬영 정보는 이 브라우저 안에서만 처리되며, 서버로 전송되거나 저장되지 않습니다.</p>
+  <p>
+    <button type="button" class="linklike" id="privacyOpen" data-i18n="privacyTitle">개인정보처리방침</button>
+    <span class="credit-sep">·</span>
+    <a class="linklike" href="https://instagram.com/bit_y_s" target="_blank" rel="noopener noreferrer">@bit_y_s</a>
+  </p>
+  <p class="legal" data-i18n="trademark">FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS, REALA는
+  FUJIFILM Corporation의 상표입니다. Recipe Archive는 후지필름과 제휴 관계가 없으며,
+  사진에 기록된 촬영 정보를 표시하기 위해 해당 명칭을 사용합니다.</p>
+</footer>
+
+<dialog id="privacyDialog" aria-labelledby="privacyTitle">
+  <article id="privacyBody"></article>
+  <button type="button" class="convert-btn" id="privacyClose" data-i18n="close">닫기</button>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- i18n ----------
+  const APP_NAME = 'Recipe Archive';   // 이름 변경 시 이 한 줄만 수정하면 전체에 반영됩니다
+  const I18N = {
+    ko: {
+      tagline:'EXIF를 읽어 프레임을 만듭니다 · 사진은 기기 밖으로 나가지 않습니다',
+      loaded:'장', images:'사진',
+      dropHint:'사진을 끌어놓거나 클릭<br>JPG · PNG · WEBP · 여러 장 가능',
+      placeholder:'사진을 불러오면<br>여기에 프레임이 나타납니다',
+      cameraInfo:'촬영 정보', showCameraInfo:'촬영 정보 표시',
+      maker:'제조사', model:'모델', date:'촬영일', photoBy:'촬영자',
+      applyPhotoByAll:'촬영자를 모든 사진에 적용',
+      filmSimulation:'필름 시뮬레이션', showRecipe:'프레임에 레시피 표시',
+      cameraInfoPlacement:'촬영 정보 위치', outputRatio:'출력 비율', mat:'배경',
+      inPhotoPos:'사진 안 위치',
+      pos_bottom:'아래', pos_top:'위', pos_left:'왼쪽', pos_right:'오른쪽', pos_overlay:'사진 위',
+      anc_bottom_left:'좌하', anc_bottom_right:'우하', anc_top_left:'좌상', anc_top_right:'우상',
+      matWhite:'흰색', matBlack:'검정',
+      applyPosAll:'이 위치를 모든 사진에 적용', applyRatioAll:'이 비율을 모든 사진에 적용',
+      applyMatAll:'이 배경을 모든 사진에 적용',
+      export:'내보내기',
+      noteRatio:'선택한 비율에 맞춰 PNG로 저장됩니다 (긴 변 기준 3840px)',
+      noteOverlay:'사진 위 모드: 사진 원본 비율 그대로 저장됩니다 (긴 변 기준 3840px)',
+      saving:'저장 중', ratioFit:'이 비율에서 사진이 프레임의 약 {p}%를 채웁니다',
+      skipped:'이미지가 아닌 파일 {n}개는 제외했습니다.',
+      heic:'{name}은(는) HEIC 형식이라 브라우저가 열 수 없습니다. 아이폰이라면 설정 › 카메라 › 포맷을 \\u2018높은 호환성\\u2019으로 바꾸거나, 공유할 때 JPEG로 변환해 주세요.',
+      loadFail:'{name}을(를) 불러오지 못했습니다. 다른 형식으로 저장해 다시 시도해 주세요.',
+      imgLoading:'이미지 불러오는 중...', imgFailed:'이미지를 불러오지 못했습니다',
+      footerPrivacy:'사진과 촬영 정보는 이 브라우저 안에서만 처리되며, 서버로 전송되거나 저장되지 않습니다.',
+      noRecipe:'인식된 레시피 값이 없습니다',
+      exportFail:'{name}을(를) 저장하지 못했습니다. 사진 수를 줄이거나 다른 기기에서 시도해 주세요.',
+      recipeStripped:'후지필름 카메라 사진이지만 필름 시뮬레이션 정보가 없습니다. 휴대폰에서 자르기·보정을 하거나 메신저로 전송하면 이 정보가 지워집니다. 카메라에서 바로 옮긴 원본을 사용해 주세요.',
+      privacyTitle:'개인정보처리방침', close:'닫기',
+      trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS, REALA는 FUJIFILM Corporation의 상표입니다. Recipe Archive는 후지필름과 제휴 관계가 없으며, 사진에 기록된 촬영 정보를 표시하기 위해 해당 명칭을 사용합니다.',
+      rk:{filmSim:'필름 시뮬레이션', dynamicRange:'다이나믹 레인지', highlight:'하이라이트', shadow:'섀도우',
+          color:'컬러', sharpness:'샤프니스', noiseReduction:'노이즈 리덕션', grain:'그레인 이펙트',
+          colorChrome:'컬러 크롬', colorChromeBlue:'컬러 크롬 블루', whiteBalance:'화이트 밸런스',
+          clarity:'클래리티', bw:'흑백 조정'},
+      privacyBody:`<h2>개인정보처리방침</h2><p class="updated">최종 개정일: 2026년 8월 29일</p>
+<h3>1. 사진과 촬영 정보</h3><p>업로드하신 사진과 사진에 담긴 촬영 정보(EXIF·필름 시뮬레이션 레시피)는 <strong>이용자의 브라우저 안에서만 처리</strong>됩니다. 서버로 전송되지 않고, 저장되지 않으며, 운영자를 포함한 누구도 열람할 수 없습니다. 브라우저 탭을 닫으면 모두 사라집니다.</p>
+<h3>2. 수집하는 정보</h3><p>본 서비스는 <strong>어떠한 개인정보도 수집하지 않습니다.</strong> 회원가입 절차가 없고, 이름·이메일·전화번호를 요구하지 않으며, 쿠키나 유사한 추적 기술을 사용하지 않습니다. 방문자 분석 도구도 설치되어 있지 않습니다.</p><p>다만 웹사이트가 호스팅되는 서버는 기술적 특성상 접속 기록(IP 주소, 접속 시각, 브라우저 종류 등)을 자동으로 남길 수 있습니다. 이는 호스팅 제공업체가 서비스 운영과 보안을 위해 처리하는 것으로, 운영자가 별도로 수집하거나 분석하지 않습니다.</p>
+<h3>3. 광고 및 제3자 제공</h3><p>본 서비스는 광고를 게재하지 않으며, 이용자의 정보를 제3자에게 판매하거나 제공하지 않습니다.</p>
+<h3>4. 보관 및 파기</h3><p>사진과 촬영 정보를 포함해 어떠한 이용자 정보도 수집하지 않으므로, 보관하거나 파기할 대상이 존재하지 않습니다.</p>
+<h3>5. 이용자의 권리</h3><p>수집하는 정보가 없으므로 열람·정정·삭제를 요청하실 대상이 없습니다. 향후 방문자 통계 등을 도입하게 되면 본 방침을 개정하고 이 페이지에 미리 고지하겠습니다.</p>
+<h3>6. 문의</h3><p>본 방침에 관한 문의는 Instagram <strong>@bit_y_s</strong>로 주시기 바랍니다.</p>
+<h3>7. 변경 고지</h3><p>본 방침이 변경되는 경우 이 페이지에 개정일과 함께 게시합니다.</p>`
+    },
+    en: {
+      tagline:'Reads your EXIF and builds a frame · photos never leave your device',
+      loaded:'loaded', images:'Images',
+      dropHint:'Drop a photo, or click<br>JPG · PNG · WEBP · multiple at once',
+      placeholder:'Load a photo and<br>your frame appears here',
+      cameraInfo:'Camera info', showCameraInfo:'Show camera info',
+      maker:'Maker', model:'Model', date:'Date', photoBy:'Photo by',
+      applyPhotoByAll:'Apply this credit to all photos',
+      filmSimulation:'Film simulation', showRecipe:'Print recipe on the frame',
+      cameraInfoPlacement:'Camera info placement', outputRatio:'Output ratio', mat:'Mat',
+      inPhotoPos:'Position in photo',
+      pos_bottom:'Bottom', pos_top:'Top', pos_left:'Left', pos_right:'Right', pos_overlay:'Overlay',
+      anc_bottom_left:'Bot L', anc_bottom_right:'Bot R', anc_top_left:'Top L', anc_top_right:'Top R',
+      matWhite:'White', matBlack:'Black',
+      applyPosAll:'Apply this placement to all photos', applyRatioAll:'Apply this ratio to all photos',
+      applyMatAll:'Apply this mat to all photos',
+      export:'Export',
+      noteRatio:'Saved as PNG at the chosen ratio (3840px on the long edge)',
+      noteOverlay:"Overlay mode: saved at the photo's own ratio (3840px on the long edge)",
+      saving:'Saving', ratioFit:'The photo fills about {p}% of the frame at this ratio',
+      skipped:'{n} non-image file(s) were skipped.',
+      heic:'{name} is a HEIC file, which browsers cannot open. On iPhone, set Settings › Camera › Formats to "Most Compatible", or convert to JPEG when sharing.',
+      loadFail:'{name} could not be loaded. Try saving it in another format.',
+      imgLoading:'Loading image...', imgFailed:'Could not load this image',
+      footerPrivacy:'Photos and their metadata are processed entirely in this browser. Nothing is uploaded or stored.',
+      noRecipe:'No recipe values were detected',
+      exportFail:'Could not export {name}. Try fewer photos at once, or another device.',
+      recipeStripped:'This is a Fujifilm photo, but the film simulation data is missing. Cropping or editing on a phone, or sending through a messenger, strips it. Use the original file straight from the camera.',
+      privacyTitle:'Privacy policy', close:'Close',
+      trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS and REALA are trademarks of FUJIFILM Corporation. Recipe Archive is not affiliated with or endorsed by FUJIFILM, and uses these names only to describe the settings recorded in your photo.',
+      rk:{filmSim:'Film Sim', dynamicRange:'Dynamic Range', highlight:'Highlight', shadow:'Shadow',
+          color:'Color', sharpness:'Sharpness', noiseReduction:'Noise Reduction', grain:'Grain Effect',
+          colorChrome:'Color Chrome', colorChromeBlue:'Color Chrome Blue', whiteBalance:'White Balance',
+          clarity:'Clarity', bw:'BW Adjustment'},
+      privacyBody:`<h2>Privacy policy</h2><p class="updated">Last updated: 29 August 2026</p>
+<h3>1. Your photos and their metadata</h3><p>Photos you load, and the EXIF and film-simulation data inside them, are <strong>processed entirely within your own browser</strong>. Nothing is uploaded, nothing is stored, and no one — including the operator — can see them. Everything disappears when you close the tab.</p>
+<h3>2. What is collected</h3><p>This service <strong>collects no personal data.</strong> There are no accounts, no name, email or phone number is requested, and no cookies or similar tracking technologies are used. No analytics tool is installed.</p><p>The server hosting this site may, as a technical matter, keep standard access logs (IP address, timestamp, browser type). These are handled by the hosting provider for operation and security; the operator does not collect or analyse them separately.</p>
+<h3>3. Advertising and third parties</h3><p>No advertising is shown, and no information is sold or shared with third parties.</p>
+<h3>4. Retention</h3><p>Because no user data is collected, there is nothing to retain or delete.</p>
+<h3>5. Your rights</h3><p>As no data is collected, there is nothing to access, correct or erase. If visitor analytics are ever introduced, this policy will be updated and posted here in advance.</p>
+<h3>6. Contact</h3><p>Questions about this policy: Instagram <strong>@bit_y_s</strong>.</p>
+<h3>7. Changes</h3><p>Any change to this policy will be posted here with a revision date.</p>`
+    },
+    ja: {
+      tagline:'EXIFを読み取ってフレームを作ります · 写真は端末の外に出ません',
+      loaded:'枚', images:'写真',
+      dropHint:'写真をドロップ、またはクリック<br>JPG · PNG · WEBP · 複数枚可',
+      placeholder:'写真を読み込むと<br>ここにフレームが表示されます',
+      cameraInfo:'撮影情報', showCameraInfo:'撮影情報を表示',
+      maker:'メーカー', model:'機種', date:'撮影日', photoBy:'撮影者',
+      applyPhotoByAll:'撮影者をすべての写真に適用',
+      filmSimulation:'フィルムシミュレーション', showRecipe:'フレームにレシピを表示',
+      cameraInfoPlacement:'撮影情報の位置', outputRatio:'出力比率', mat:'背景',
+      inPhotoPos:'写真内の位置',
+      pos_bottom:'下', pos_top:'上', pos_left:'左', pos_right:'右', pos_overlay:'写真上',
+      anc_bottom_left:'左下', anc_bottom_right:'右下', anc_top_left:'左上', anc_top_right:'右上',
+      matWhite:'白', matBlack:'黒',
+      applyPosAll:'この位置をすべての写真に適用', applyRatioAll:'この比率をすべての写真に適用',
+      applyMatAll:'この背景をすべての写真に適用',
+      export:'書き出し',
+      noteRatio:'選択した比率でPNGとして保存されます（長辺3840px）',
+      noteOverlay:'写真上モード：写真の元の比率のまま保存されます（長辺3840px）',
+      saving:'保存中', ratioFit:'この比率では写真がフレームの約{p}%を占めます',
+      skipped:'画像以外のファイル{n}件は除外しました。',
+      heic:'{name} はHEIC形式のためブラウザで開けません。iPhoneの場合は「設定 › カメラ › フォーマット」を「互換性優先」にするか、共有時にJPEGへ変換してください。',
+      loadFail:'{name} を読み込めませんでした。別の形式で保存してお試しください。',
+      imgLoading:'画像を読み込み中...', imgFailed:'画像を読み込めませんでした',
+      footerPrivacy:'写真と撮影情報はこのブラウザ内でのみ処理され、送信も保存もされません。',
+      noRecipe:'認識されたレシピ値はありません',
+      exportFail:'{name} を保存できませんでした。枚数を減らすか、別の端末でお試しください。',
+      recipeStripped:'富士フイルムの写真ですが、フィルムシミュレーション情報がありません。スマホでのトリミング・編集やメッセンジャー送信で削除されます。カメラから直接取り込んだ元ファイルをお使いください。',
+      privacyTitle:'プライバシーポリシー', close:'閉じる',
+      trademark:'FUJIFILM、Velvia、ASTIA、PROVIA、Classic Chrome、ETERNA、ACROS、REALAはFUJIFILM Corporationの商標です。Recipe Archiveは富士フイルムと提携関係にはなく、写真に記録された撮影設定を表示する目的でこれらの名称を使用しています。',
+      rk:{filmSim:'フィルムシミュレーション', dynamicRange:'ダイナミックレンジ', highlight:'ハイライト', shadow:'シャドウ',
+          color:'カラー', sharpness:'シャープネス', noiseReduction:'ノイズリダクション', grain:'グレインエフェクト',
+          colorChrome:'カラークローム', colorChromeBlue:'カラークロームブルー', whiteBalance:'ホワイトバランス',
+          clarity:'クラリティ', bw:'モノクロ調整'},
+      privacyBody:`<h2>プライバシーポリシー</h2><p class="updated">最終改定日：2026年8月29日</p>
+<h3>1. 写真と撮影情報</h3><p>読み込んだ写真と、その中のEXIF・フィルムシミュレーション情報は<strong>お使いのブラウザ内でのみ処理</strong>されます。送信も保存もされず、運営者を含め誰も閲覧できません。タブを閉じるとすべて消えます。</p>
+<h3>2. 収集する情報</h3><p>本サービスは<strong>いかなる個人情報も収集しません。</strong>会員登録はなく、氏名・メール・電話番号を求めることもなく、Cookieや類似の追跡技術も使用しません。アクセス解析ツールも導入していません。</p><p>ただしホスティングサーバーは技術的な性質上、アクセスログ（IPアドレス、時刻、ブラウザ種別など）を自動的に記録する場合があります。これはホスティング事業者が運用と安全のために扱うもので、運営者が別途収集・分析することはありません。</p>
+<h3>3. 広告および第三者提供</h3><p>広告は掲載せず、利用者の情報を第三者に販売・提供することもありません。</p>
+<h3>4. 保管と廃棄</h3><p>利用者情報を一切収集しないため、保管も廃棄も対象がありません。</p>
+<h3>5. 利用者の権利</h3><p>収集する情報がないため、開示・訂正・削除の対象はありません。今後アクセス解析等を導入する場合は、本ポリシーを改定し事前にこのページで告知します。</p>
+<h3>6. お問い合わせ</h3><p>本ポリシーに関するお問い合わせは Instagram <strong>@bit_y_s</strong> までお願いします。</p>
+<h3>7. 変更の告知</h3><p>本ポリシーを変更する場合は、改定日とともにこのページに掲載します。</p>`
+    }
+  };
+
+  let LANG = 'en';
+  const t = (k) => (I18N[LANG] && I18N[LANG][k] != null) ? I18N[LANG][k] : (I18N.en[k] != null ? I18N.en[k] : k);
+  const tf = (k, vars) => String(t(k)).replace(/\{(\w+)\}/g, (m,p) => vars[p] != null ? vars[p] : m);
+
+  function detectLang(){
+    try{
+      const saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('recipe-archive.lang') : null;
+      if(saved && I18N[saved]) return saved;
+    }catch(e){}
+    const nav = typeof navigator !== 'undefined' ? navigator : null;
+    const langs = (nav && nav.languages && nav.languages.length)
+      ? nav.languages : [(nav && nav.language) || 'en'];
+    for(const l of langs){
+      const base = String(l).toLowerCase().split('-')[0];
+      if(I18N[base]) return base;
+    }
+    return 'en';
+  }
+
+  function applyLang(lang){
+    LANG = I18N[lang] ? lang : 'en';
+    try{ if(typeof localStorage !== 'undefined') localStorage.setItem('recipe-archive.lang', LANG); }catch(e){}
+    document.documentElement.lang = LANG;
+
+    document.querySelectorAll('[data-i18n]').forEach(el2 => {
+      const k = el2.dataset.i18n.replace(/-/g,'_');
+      const v = t(k);
+      if(v != null) el2.textContent = v;
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el2 => {
+      const v = t(el2.dataset.i18nHtml);
+      if(v != null) el2.innerHTML = v;
+    });
+    const pb = el('privacyBody');
+    if(pb) pb.innerHTML = t('privacyBody');
+    document.querySelectorAll('#langs button').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === LANG);
+    });
+    if(curIndex >= 0){ syncFormFromItem(items[curIndex]); draw(); }
+    else { updateRatioAvailability(); }
+  }
+
+
+  // ---------- EXIF (minimal, dependency-free) ----------
+  function readIFD(view, tiffStart, ifdOffset, little){
+    const entries = view.getUint16(ifdOffset, little);
+    const tags = {};
+    const entryOffsets = {};
+    for(let i=0;i<entries;i++){
+      const entryOffset = ifdOffset + 2 + i*12;
+      const tag = view.getUint16(entryOffset, little);
+      tags[tag] = readTagValue(view, tiffStart, entryOffset, little);
+      entryOffsets[tag] = entryOffset;
+    }
+    return { tags, entryOffsets };
+  }
+
+  // Compute the raw byte offset + length of a tag's value data, without
+  // decoding it — needed for opaque blobs like MakerNote (type UNDEFINED).
+  function getTagRaw(view, tiffStart, entryOffset, little){
+    const type = view.getUint16(entryOffset+2, little);
+    const count = view.getUint32(entryOffset+4, little);
+    const typeSizes = {1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8};
+    const size = (typeSizes[type]||1) * count;
+    let valueOffset = entryOffset+8;
+    if(size > 4){
+      valueOffset = tiffStart + view.getUint32(entryOffset+8, little);
+    }
+    return { offset: valueOffset, length: size };
+  }
+
+  function readTagValue(view, tiffStart, entryOffset, little){
+    const type = view.getUint16(entryOffset+2, little);
+    const count = view.getUint32(entryOffset+4, little);
+    const typeSizes = {1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8};
+    const size = (typeSizes[type]||1) * count;
+    let valueOffset = entryOffset+8;
+    if(size > 4){
+      valueOffset = tiffStart + view.getUint32(entryOffset+8, little);
+    }
+    try{
+      switch(type){
+        case 2:{ // ASCII
+          let str = '';
+          for(let i=0;i<count-1;i++){ str += String.fromCharCode(view.getUint8(valueOffset+i)); }
+          return str.trim();
+        }
+        case 3: return view.getUint16(valueOffset, little);
+        case 4: return view.getUint32(valueOffset, little);
+        case 5:{ // RATIONAL
+          const num = view.getUint32(valueOffset, little);
+          const den = view.getUint32(valueOffset+4, little);
+          return den ? num/den : 0;
+        }
+        case 10:{ // SRATIONAL
+          const num = view.getInt32(valueOffset, little);
+          const den = view.getInt32(valueOffset+4, little);
+          return den ? num/den : 0;
+        }
+        default: return null;
+      }
+    }catch(e){ return null; }
+  }
+
+  function parseExif(buffer){
+    try{
+      const view = new DataView(buffer);
+      if(view.getUint16(0) !== 0xFFD8) return null; // not JPEG
+      let offset = 2, app1Offset = null;
+      while(offset < view.byteLength - 4){
+        const marker = view.getUint16(offset);
+        if((marker & 0xFF00) !== 0xFF00) break;
+        if(marker === 0xFFE1){ app1Offset = offset; break; }
+        if(marker === 0xFFD8){ offset += 2; continue; }
+        if(marker === 0xFFD9 || marker === 0xFFDA) break;
+        const segLength = view.getUint16(offset+2);
+        offset += 2 + segLength;
+      }
+      if(app1Offset === null) return null;
+      const app1Start = app1Offset + 4;
+      const header = String.fromCharCode(
+        view.getUint8(app1Start), view.getUint8(app1Start+1),
+        view.getUint8(app1Start+2), view.getUint8(app1Start+3)
+      );
+      if(header !== 'Exif') return null;
+      const tiffStart = app1Start + 6;
+      const little = view.getUint16(tiffStart) === 0x4949;
+      const firstIFDOffset = view.getUint32(tiffStart+4, little);
+      const ifd0 = readIFD(view, tiffStart, tiffStart+firstIFDOffset, little);
+
+      const result = {};
+      if(ifd0.tags[0x010F]) result.maker = String(ifd0.tags[0x010F]);
+      if(ifd0.tags[0x0110]) result.model = String(ifd0.tags[0x0110]);
+
+      if(ifd0.tags[0x8769]){
+        const exifIFD = readIFD(view, tiffStart, tiffStart+ifd0.tags[0x8769], little);
+        if(exifIFD.tags[0x829D] != null) result.fNumber = exifIFD.tags[0x829D];
+        if(exifIFD.tags[0x829A] != null) result.exposureTime = exifIFD.tags[0x829A];
+        if(exifIFD.tags[0x8827] != null) result.iso = exifIFD.tags[0x8827];
+        if(exifIFD.tags[0x9003]) result.dateTimeOriginal = String(exifIFD.tags[0x9003]);
+
+        // Fujifilm film simulation recipe lives in the proprietary MakerNote
+        if(result.maker && /FUJIFILM/i.test(result.maker) && exifIFD.entryOffsets[0x927C] != null){
+          try{
+            result.recipe = parseFujiMakerNote(view, tiffStart, exifIFD.entryOffsets[0x927C], little);
+          }catch(e){ console.warn('Fuji MakerNote parse failed', e); }
+        }
+      }
+      return result;
+    }catch(e){
+      console.warn('EXIF parse failed', e);
+      return null;
+    }
+  }
+
+  // ---------- Fujifilm MakerNote (film simulation recipe) ----------
+  // Structure: "FUJIFILM" (8 bytes ASCII) + uint32LE IFD offset (relative to
+  // the start of this block) + a mini TIFF-style IFD, always little-endian,
+  // with its own value offsets relative to the same start.
+  function readFujiTagValue(view, mnStart, entryOffset, little){
+    const type = view.getUint16(entryOffset+2, little);
+    const count = view.getUint32(entryOffset+4, little);
+    const typeSizes = {1:1,2:1,3:2,4:4,5:8,6:1,7:1,9:4,10:8};
+    const unitSize = typeSizes[type] || 1;
+    const size = unitSize * count;
+    let valueOffset = entryOffset + 8;
+    if(size > 4){
+      valueOffset = mnStart + view.getUint32(entryOffset+8, little);
+    }
+    const vals = [];
+    for(let i=0;i<count;i++){
+      const p = valueOffset + i*unitSize;
+      try{
+        switch(type){
+          case 1: vals.push(view.getUint8(p)); break;
+          case 3: vals.push(view.getUint16(p, little)); break;
+          case 4: vals.push(view.getUint32(p, little)); break;
+          case 6: vals.push(view.getInt8(p)); break;
+          case 9: vals.push(view.getInt32(p, little)); break;
+          default: vals.push(null);
+        }
+      }catch(e){ vals.push(null); }
+    }
+    return count === 1 ? vals[0] : vals;
+  }
+
+  function readFujiIFD(view, mnStart, ifdOffset, little){
+    const entries = view.getUint16(ifdOffset, little);
+    const tags = {};
+    for(let i=0;i<entries;i++){
+      const entryOffset = ifdOffset + 2 + i*12;
+      const tag = view.getUint16(entryOffset, little);
+      tags[tag] = readFujiTagValue(view, mnStart, entryOffset, little);
+    }
+    return tags;
+  }
+
+  // Value -> label lookups (from public ExifTool FujiFilm.pm tag documentation)
+  const FUJI_MAPS = {
+    filmMode: {
+      0x000:'PROVIA/Standard', 0x100:'Studio Portrait', 0x110:'Studio Portrait Enhanced',
+      0x120:'ASTIA/Soft', 0x130:'Studio Portrait Sharp', 0x200:'VELVIA/Vivid',
+      0x300:'Studio Portrait Ex', 0x400:'VELVIA', 0x500:'PRO Neg. Std', 0x501:'PRO Neg. Hi',
+      0x600:'Classic Chrome', 0x700:'ETERNA', 0x800:'Classic Negative',
+      0x900:'Eterna Bleach Bypass', 0xa00:'Nostalgic Neg.', 0xb00:'REALA ACE'
+    },
+    // Saturation values 0x300-0x310 / 0x500-0x503 actually encode the B&W
+    // film simulations on most bodies — these take priority over filmMode.
+    bwFromSaturation: {
+      0x300:'Monochrome', 0x301:'Monochrome + R', 0x302:'Monochrome + Ye', 0x303:'Monochrome + G',
+      0x310:'Sepia', 0x500:'ACROS', 0x501:'ACROS + R', 0x502:'ACROS + Ye', 0x503:'ACROS + G'
+    },
+    saturation: {
+      0x0:'0', 0x080:'+1', 0x100:'+2', 0x0c0:'+3', 0x0e0:'+4',
+      0x180:'-1', 0x200:'Low', 0x400:'-2', 0x4c0:'-3', 0x4e0:'-4'
+    },
+    whiteBalance: {
+      0x0:'Auto', 0x1:'Auto(White)', 0x2:'Auto(Ambiance)', 0x100:'Daylight', 0x200:'Cloudy',
+      0x300:'Fluorescent 1', 0x301:'Fluorescent 2', 0x302:'Fluorescent 3', 0x303:'Fluorescent 4',
+      0x304:'Fluorescent 5', 0x400:'Incandescent', 0x500:'Flash', 0x600:'Underwater',
+      0xf00:'Custom', 0xf01:'Custom2', 0xf02:'Custom3', 0xf03:'Custom4', 0xf04:'Custom5', 0xff0:'Kelvin'
+    },
+    dynamicRangeSetting: { 0x000:'Auto', 0x001:'Manual', 0x100:'DR100', 0x200:'DR230', 0x201:'DR400' },
+    dynamicRange: { 1:'Standard', 3:'Wide' },
+    sharpness: { 0x00:'-4', 0x01:'-3', 0x02:'-2', 0x03:'0', 0x04:'+2', 0x05:'+3', 0x06:'+4', 0x82:'-1', 0x84:'+1' },
+    grain: { 0:'Off', 32:'Weak', 64:'Strong' },
+    grainSize: { 0:'Off', 16:'Small', 32:'Large' },
+    colorChrome: { 0:'Off', 32:'Weak', 64:'Strong' },
+    noiseReduction: { 0x000:'0', 0x100:'+2', 0x180:'+1', 0x1c0:'+3', 0x1e0:'+4', 0x200:'-2', 0x280:'-1', 0x2c0:'-3', 0x2e0:'-4' }
+  };
+
+  function toneLabel(raw){
+    if(raw == null) return null;
+    const v = -raw/16;
+    return (v>0?'+':'') + v;
+  }
+
+  function parseFujiMakerNote(view, tiffStart, mnEntryOffset, little){
+    const raw = getTagRaw(view, tiffStart, mnEntryOffset, little);
+    const sig = String.fromCharCode(
+      view.getUint8(raw.offset), view.getUint8(raw.offset+1), view.getUint8(raw.offset+2), view.getUint8(raw.offset+3),
+      view.getUint8(raw.offset+4), view.getUint8(raw.offset+5), view.getUint8(raw.offset+6), view.getUint8(raw.offset+7)
+    );
+    if(sig !== 'FUJIFILM') return null;
+    const mnStart = raw.offset;
+    // Fuji IFD offset/byte-order inside the MakerNote is always little-endian
+    const ifdRelOffset = view.getUint32(mnStart+8, true);
+    const fuji = readFujiIFD(view, mnStart, mnStart+ifdRelOffset, true);
+
+    const filmMode = fuji[0x1401];
+    const saturation = fuji[0x1003];
+    const bwName = saturation != null ? FUJI_MAPS.bwFromSaturation[saturation] : undefined;
+    const filmSim = bwName || (filmMode != null ? FUJI_MAPS.filmMode[filmMode] : undefined) || null;
+
+    const wbFine = fuji[0x100a]; // [Red, Blue], newer bodies: divide by 20
+    let wbShift = null;
+    if(Array.isArray(wbFine) && wbFine.length === 2){
+      const r = Math.round(wbFine[0]/20), b = Math.round(wbFine[1]/20);
+      if(r !== 0 || b !== 0) wbShift = `R${r>0?'+':''}${r} B${b>0?'+':''}${b}`;
+    }
+
+    const nr = fuji[0x100e] != null ? fuji[0x100e] : fuji[0x100b];
+    const dr = fuji[0x1402] != null ? FUJI_MAPS.dynamicRangeSetting[fuji[0x1402]] : (fuji[0x1400] != null ? FUJI_MAPS.dynamicRange[fuji[0x1400]] : null);
+
+    return {
+      filmSim,
+      dynamicRange: dr || null,
+      highlight: toneLabel(fuji[0x1041]),
+      shadow: toneLabel(fuji[0x1040]),
+      color: (!bwName && saturation != null) ? (FUJI_MAPS.saturation[saturation] || null) : null,
+      sharpness: fuji[0x1001] != null ? (FUJI_MAPS.sharpness[fuji[0x1001]] || null) : null,
+      noiseReduction: nr != null ? (FUJI_MAPS.noiseReduction[nr] || null) : null,
+      grainRoughness: fuji[0x1047] != null ? (FUJI_MAPS.grain[fuji[0x1047]] || null) : null,
+      grainSize: fuji[0x104c] != null ? (FUJI_MAPS.grainSize[fuji[0x104c]] || null) : null,
+      colorChrome: fuji[0x1048] != null ? (FUJI_MAPS.colorChrome[fuji[0x1048]] || null) : null,
+      colorChromeBlue: fuji[0x104e] != null ? (FUJI_MAPS.colorChrome[fuji[0x104e]] || null) : null,
+      whiteBalance: fuji[0x1002] != null ? (FUJI_MAPS.whiteBalance[fuji[0x1002]] || null) : null,
+      whiteBalanceShift: wbShift,
+      clarity: fuji[0x100f] != null ? (fuji[0x100f]/1000) : null,
+      bwAdjustment: (bwName && fuji[0x1049] != null) ? fuji[0x1049] : null
+    };
+  }
+
+  function fmtF(n){
+    if(n == null || isNaN(n)) return '';
+    return (Math.round(n*10)/10).toString();
+  }
+  function fmtSS(n){
+    if(n == null || isNaN(n)) return '';
+    if(n <= 0) return '';
+    if(n < 1) return '1/' + Math.round(1/n);
+    return (Math.round(n*10)/10) + '';
+  }
+  function fmtDate(s){
+    if(!s) return '';
+    // "YYYY:MM:DD HH:MM:SS" -> "YYYY.MM.DD"
+    const m = s.match(/^(\d{4}):(\d{2}):(\d{2})/);
+    if(m) return `${m[1]}.${m[2]}.${m[3]}`;
+    return s;
+  }
+
+  // ---------- State ----------
+  let items = [];      // {id, file, name, url, img, fields:{maker,model,fnum,ss,iso,date,photoBy}, mode, infoEnabled}
+  let curIndex = -1;
+  let uid = 0;
+
+  const el = (id) => document.getElementById(id);
+  const canvas = el('canvas');
+  const ctx = canvas.getContext('2d');
+  const placeholder = el('placeholder');
+
+  const fields = {
+    maker: el('fMaker'), model: el('fModel'),
+    fnum: el('fFnum'), ss: el('fSS'), iso: el('fISO'),
+    date: el('fDate'), photoBy: el('fPhotoBy')
+  };
+
+  // ---------- File loading ----------
+  // Browsers can only decode what they ship a codec for. Rather than
+  // silently dropping anything unusual (an iPhone HEIC would just vanish),
+  // accept every image the picker offers and report what fails to load.
+  function showNotice(msg){
+    const n = el('notice');
+    if(!n) return;
+    if(!msg){ n.hidden = true; n.textContent = ''; return; }
+    n.hidden = false;
+    n.textContent = msg;
+  }
+
+  function handleFiles(fileList){
+    const all = Array.from(fileList);
+    const files = all.filter(f => f.type ? /^image\//.test(f.type) : /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i.test(f.name));
+    const skipped = all.length - files.length;
+    if(skipped > 0){
+      showNotice(tf('skipped', {n:skipped}));
+    } else {
+      showNotice('');
+    }
+    files.forEach(file => {
+      const item = {
+        id: uid++,
+        file,
+        name: file.name,
+        url: '',
+        img: null,
+        loadError: false,
+        fields: { maker:'', model:'', fnum:'', ss:'', iso:'', date:'', photoBy:'' },
+        recipe: null,
+        showRecipe: true,
+        mode: 'white',
+        shootingPosition: 'bottom',
+        recipePosition: 'bottom',
+        shootingOverlayAnchor: 'bottom-left',
+        recipeOverlayAnchor: 'bottom-left',
+        aspectRatio: '4:5',
+        infoEnabled: true
+      };
+      items.push(item);
+      renderThumbs();
+
+      // Load via data: URL (FileReader) instead of blob: URL — far more
+      // reliably decodable as an <img>/canvas source across browsers.
+      const displayReader = new FileReader();
+      displayReader.onload = (e) => {
+        const dataUrl = e.target.result;
+        item.url = dataUrl;
+        renderThumbs();
+
+        const image = new Image();
+        image.onload = () => {
+          item.img = image;
+          item.loadError = false;
+          if(curIndex === -1){ selectItem(items.indexOf(item)); }
+          renderThumbs();
+          if(items[curIndex] === item) draw();
+        };
+        image.onerror = () => {
+          item.loadError = true;
+          const heic = /\.(heic|heif)$/i.test(item.name) || /heic|heif/i.test(file.type || '');
+          showNotice(tf(heic ? 'heic' : 'loadFail', {name:item.name}));
+          if(items[curIndex] === item) draw();
+        };
+        image.src = dataUrl;
+      };
+      displayReader.onerror = () => {
+        item.loadError = true;
+        console.error('파일 읽기 실패:', item.name);
+      };
+      displayReader.readAsDataURL(file);
+
+      if(file.type === 'image/jpeg'){
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const exif = parseExif(e.target.result);
+          if(exif){
+            item.fields.maker = exif.maker || '';
+            item.fields.model = exif.model || '';
+            item.fields.fnum = fmtF(exif.fNumber);
+            item.fields.ss = fmtSS(exif.exposureTime);
+            item.fields.iso = exif.iso != null ? String(exif.iso) : '';
+            item.fields.date = fmtDate(exif.dateTimeOriginal);
+            item.recipe = exif.recipe || null;
+            if(items[curIndex] === item) syncFormFromItem(item);
+            draw();
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+    updateCounts();
+  }
+
+  el('fileInput').addEventListener('change', (e) => handleFiles(e.target.files));
+  const dz = el('dropzone');
+  dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault(); dz.classList.remove('drag');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  // ---------- Thumbnails / navigation ----------
+  function renderThumbs(){
+    const wrap = el('thumbs');
+    wrap.innerHTML = '';
+    items.forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'thumb' + (i === curIndex ? ' active' : '');
+      const imgTag = item.url ? `<img src="${item.url}"/>` : `<span class="thumb-empty"></span>`;
+      row.innerHTML = `${imgTag}<span class="name">${item.name}</span><button class="rm" title="삭제">✕</button>`;
+      row.addEventListener('click', (e) => {
+        if(e.target.classList.contains('rm')){
+          removeItem(i);
+        } else {
+          selectItem(i);
+        }
+      });
+      wrap.appendChild(row);
+    });
+  }
+
+  function removeItem(i){
+    items.splice(i,1);
+    if(items.length === 0){ curIndex = -1; }
+    else { curIndex = Math.max(0, Math.min(curIndex, items.length-1)); }
+    renderThumbs();
+    if(curIndex >= 0){ syncFormFromItem(items[curIndex]); draw(); }
+    else { placeholder.style.display='flex'; ctx.clearRect(0,0,canvas.width,canvas.height); updateAccent(); }
+    updateCounts();
+  }
+
+  function selectItem(i){
+    if(i < 0 || i >= items.length) return;
+    curIndex = i;
+    renderThumbs();
+    syncFormFromItem(items[i]);
+    draw();
+    updateCounts();
+  }
+
+  function updateCounts(){
+    el('loadedCount').textContent = items.length;
+    el('curIdx').textContent = items.length ? (curIndex+1) : 0;
+    el('totalIdx').textContent = items.length;
+    el('prevBtn').disabled = curIndex <= 0;
+    el('nextBtn').disabled = curIndex >= items.length-1;
+    el('convertBtn').disabled = items.length === 0;
+  }
+
+  el('prevBtn').addEventListener('click', () => selectItem(curIndex-1));
+  el('nextBtn').addEventListener('click', () => selectItem(curIndex+1));
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowLeft') selectItem(curIndex-1);
+    if(e.key === 'ArrowRight') selectItem(curIndex+1);
+  });
+
+  // ---------- Form <-> item sync ----------
+  // Signature: the interface borrows its accent from the film simulation
+  // the photo was actually shot on, so the whole app quietly takes on the
+  // colour of the film. Falls back to bone when there's no recipe.
+  // The in-photo corner picker only makes sense while that block is
+  // actually overlaid, so it appears and disappears with the Overlay choice.
+  function updateAnchorVisibility(item){
+    const sr = el('shootingAnchorRow');
+    const rr = el('recipeAnchorRow');
+    if(sr) sr.hidden = !(item && item.shootingPosition === 'overlay');
+    if(rr) rr.hidden = !(item && item.recipePosition === 'overlay');
+  }
+
+  document.querySelectorAll('.shooting-anchor-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.shooting-anchor-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const a = btn.dataset.anchor;
+      if(el('applyShootingPosAll').checked) items.forEach(it => it.shootingOverlayAnchor = a);
+      else items[curIndex].shootingOverlayAnchor = a;
+      draw();
+    });
+  });
+
+  document.querySelectorAll('.recipe-anchor-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.recipe-anchor-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const a = btn.dataset.anchor;
+      if(el('applyRecipePosAll').checked) items.forEach(it => it.recipeOverlayAnchor = a);
+      else items[curIndex].recipeOverlayAnchor = a;
+      draw();
+    });
+  });
+
+  function updateAccent(){
+    const root = document.documentElement;
+    const film = curIndex >= 0 ? filmAccent(items[curIndex].recipe) : null;
+    if(film){
+      root.style.setProperty('--accent', film);
+    } else {
+      // Fall back to whichever neutral the active colour scheme defines,
+      // so the light and dark palettes each keep their own contrast.
+      root.style.removeProperty('--accent');
+    }
+  }
+
+  // In pure-overlay mode the output takes the photo's own aspect ratio,
+  // so the ratio picker is disabled and the note explains why.
+  // A frame whose orientation opposes the photo's can only ever letterbox it
+  // down to ~20% of the canvas. Rather than distort the geometry to hide
+  // that, flag the ratios that actually suit the loaded photo.
+  function updateRatioFit(){
+    const btns = document.querySelectorAll('.ratio-btn');
+    if(!btns.length) return;
+    const item = curIndex >= 0 ? items[curIndex] : null;
+    if(!item || !item.img){
+      btns.forEach(b => b.classList.remove('fits','poor'));
+      return;
+    }
+    const pr = item.img.width / item.img.height;
+    btns.forEach(b => {
+      const key = b.dataset.ratio;
+      const s = sizeForRatio(key);
+      const fr = s.w / s.h;
+      // fraction of the frame the photo can occupy at this ratio
+      const cover = pr > fr ? fr/pr : pr/fr;
+      b.classList.toggle('fits', cover >= 0.85);
+      b.classList.toggle('poor', cover < 0.55);
+      b.title = tf('ratioFit', {p:Math.round(cover*100)});
+    });
+  }
+
+  function updateRatioAvailability(){
+    const grid = el('ratioGrid');
+    const note = el('outputNote');
+    const applyAll = el('applyRatioAll');
+    const pure = curIndex >= 0 && usesPureOverlay(items[curIndex]);
+    updateRatioFit();
+    if(grid) grid.classList.toggle('disabled', pure);
+    if(applyAll) applyAll.disabled = pure;
+    if(note){
+      note.textContent = t(pure ? 'noteOverlay' : 'noteRatio');
+    }
+  }
+
+  function syncFormFromItem(item){
+    fields.maker.value = item.fields.maker;
+    fields.model.value = item.fields.model;
+    fields.fnum.value = item.fields.fnum;
+    fields.ss.value = item.fields.ss;
+    fields.iso.value = item.fields.iso;
+    fields.date.value = item.fields.date;
+    fields.photoBy.value = item.fields.photoBy;
+    el('infoEnabled').checked = item.infoEnabled;
+    document.querySelectorAll('.mode-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === item.mode);
+    });
+    document.querySelectorAll('.pos-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.position === item.shootingPosition);
+    });
+    document.querySelectorAll('.recipe-pos-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.position === item.recipePosition);
+    });
+    document.querySelectorAll('.shooting-anchor-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.anchor === item.shootingOverlayAnchor);
+    });
+    document.querySelectorAll('.recipe-anchor-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.anchor === item.recipeOverlayAnchor);
+    });
+    updateAnchorVisibility(item);
+    document.querySelectorAll('.ratio-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.ratio === item.aspectRatio);
+    });
+    updateLCD(item.fields);
+    renderRecipeSection(item);
+  }
+
+  const rk = (k) => { const m=t('rk'); return (m && m[k]) ? m[k] : k; };
+
+  function renderRecipeSection(item){
+    const section = el('recipeSection');
+    if(!item.recipe){
+      section.style.display = 'none';
+      // A Fujifilm body with no MakerNote means the recipe block was stripped
+      // downstream (phone crop/edit, messenger re-encode). Nothing is
+      // recoverable from the file, so explain rather than fail silently.
+      if(/FUJIFILM/i.test(item.fields.maker || '')) showNotice(t('recipeStripped'));
+      return;
+    }
+    section.style.display = '';
+    el('showRecipe').checked = item.showRecipe;
+    const r = item.recipe;
+    const rows = [];
+    if(r.filmSim) rows.push([rk('filmSim'), r.filmSim, true]);
+    if(r.dynamicRange) rows.push([rk('dynamicRange'), r.dynamicRange]);
+    if(r.highlight) rows.push([rk('highlight'), r.highlight]);
+    if(r.shadow) rows.push([rk('shadow'), r.shadow]);
+    if(r.color) rows.push([rk('color'), r.color]);
+    if(r.sharpness) rows.push([rk('sharpness'), r.sharpness]);
+    if(r.noiseReduction) rows.push([rk('noiseReduction'), r.noiseReduction]);
+    if(r.grainRoughness) rows.push([rk('grain'), r.grainRoughness + (r.grainSize ? ' / ' + r.grainSize : '')]);
+    if(r.colorChrome) rows.push([rk('colorChrome'), r.colorChrome]);
+    if(r.colorChromeBlue) rows.push([rk('colorChromeBlue'), r.colorChromeBlue]);
+    if(r.whiteBalance) rows.push([rk('whiteBalance'), r.whiteBalance + (r.whiteBalanceShift ? ' (' + r.whiteBalanceShift + ')' : '')]);
+    if(r.clarity != null && r.clarity !== 0) rows.push([rk('clarity'), (r.clarity>0?'+':'') + r.clarity]);
+    if(r.bwAdjustment != null) rows.push([rk('bw'), (r.bwAdjustment>0?'+':'') + r.bwAdjustment]);
+
+    const box = el('recipeBox');
+    if(rows.length === 0){
+      box.innerHTML = `<span class="rk">${t('noRecipe')}</span><span class="rv"></span>`;
+      return;
+    }
+    box.innerHTML = rows.map(([k,v,hero]) =>
+      `<span class="rk${hero?' hero':''}">${k}</span><span class="rv${hero?' hero':''}">${v}</span>`
+    ).join('');
+  }
+
+  function recipeSummaryParts(recipe){
+    if(!recipe) return [];
+    const parts = [];
+    if(recipe.filmSim) parts.push(recipe.filmSim);
+    if(recipe.dynamicRange) parts.push(recipe.dynamicRange);
+    if(recipe.whiteBalance) parts.push(recipe.whiteBalance + (recipe.whiteBalanceShift ? ' ' + recipe.whiteBalanceShift : ''));
+    if(recipe.highlight || recipe.shadow) parts.push(`H${recipe.highlight||'0'}/S${recipe.shadow||'0'}`);
+    if(recipe.color) parts.push('Color ' + recipe.color);
+    if(recipe.grainRoughness && recipe.grainRoughness !== 'Off') parts.push('Grain ' + recipe.grainRoughness);
+    if(recipe.colorChrome && recipe.colorChrome !== 'Off') parts.push('CC ' + recipe.colorChrome);
+    return parts;
+  }
+
+  function recipeSummaryLine(recipe){
+    return recipeSummaryParts(recipe).join('  ·  ');
+  }
+
+  function updateLCD(f){
+    el('lcdF').textContent = f.fnum ? ('f/' + f.fnum) : 'f/--';
+    el('lcdSS').textContent = f.ss ? (f.ss + 's') : '--s';
+    el('lcdISO').textContent = f.iso ? ('ISO ' + f.iso) : 'ISO --';
+  }
+
+  Object.entries(fields).forEach(([key, input]) => {
+    input.addEventListener('input', () => {
+      if(curIndex < 0) return;
+      const item = items[curIndex];
+      item.fields[key] = input.value;
+      updateLCD(item.fields);
+      draw();
+    });
+  });
+
+  el('infoEnabled').addEventListener('change', (e) => {
+    if(curIndex < 0) return;
+    items[curIndex].infoEnabled = e.target.checked;
+    draw();
+  });
+
+  el('showRecipe').addEventListener('change', (e) => {
+    if(curIndex < 0) return;
+    items[curIndex].showRecipe = e.target.checked;
+    draw();
+  });
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const mode = btn.dataset.mode;
+      if(el('applyModeAll').checked){
+        items.forEach(it => it.mode = mode);
+      } else {
+        items[curIndex].mode = mode;
+      }
+      draw();
+    });
+  });
+
+  document.querySelectorAll('.pos-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const pos = btn.dataset.position;
+      if(el('applyShootingPosAll').checked){
+        items.forEach(it => it.shootingPosition = pos);
+      } else {
+        items[curIndex].shootingPosition = pos;
+      }
+      updateAnchorVisibility(items[curIndex]);
+      draw();
+    });
+  });
+
+  document.querySelectorAll('.recipe-pos-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.recipe-pos-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const pos = btn.dataset.position;
+      if(el('applyRecipePosAll').checked){
+        items.forEach(it => it.recipePosition = pos);
+      } else {
+        items[curIndex].recipePosition = pos;
+      }
+      updateAnchorVisibility(items[curIndex]);
+      draw();
+    });
+  });
+
+  document.querySelectorAll('.ratio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const ratio = btn.dataset.ratio;
+      if(el('applyRatioAll').checked){
+        items.forEach(it => it.aspectRatio = ratio);
+      } else {
+        items[curIndex].aspectRatio = ratio;
+      }
+      draw();
+    });
+  });
+
+  fields.photoBy.addEventListener('input', () => {
+    if(el('applyPhotoByAll').checked){
+      items.forEach(it => it.fields.photoBy = fields.photoBy.value);
+    }
+  });
+
+  // ---------- Rendering ----------
+  // Canvas needs the same monospace fallback chain as the CSS: if the
+  // the JetBrains Mono webfont hasn't loaded (offline, blocked, or slow),
+  // a bare family name would silently fall back to the browser's
+  // default proportional font and the export would not be monospace.
+  const MONO = `'JetBrains Mono', 'Nanum Gothic Coding', 'M PLUS 1 Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'D2Coding', 'Courier New', monospace`;
+
+  const THEMES = {
+    white: { bg:'#FAFAF7', ink:'#1A1A1A', muted:'#6B6B66', rule:'#DEDCD3' },
+    black: { bg:'#0B0B0C', ink:'#F2F2ED', muted:'#8C8C86', rule:'#2A2A28' }
+  };
+
+  // Each film simulation gets a signature accent, drawn as the short
+  // rule under its name. Matched by prefix so variants ("ACROS+R",
+  // "Monochrome+G") inherit their family's colour.
+  const FILM_ACCENTS = [
+    ['Velvia',        '#C0453C'],
+    ['ASTIA',         '#D2909A'],
+    ['Classic Chrome','#7D8D80'],
+    ['Classic Neg',   '#B0763E'],
+    ['Nostalgic',     '#BC8446'],
+    ['PRO Neg. Hi',   '#A08669'],
+    ['PRO Neg',       '#AC977E'],
+    ['ETERNA',        '#6C7C84'],
+    ['REALA',         '#8897A3'],
+    ['ACROS',         '#707070'],
+    ['Monochrome',    '#707070'],
+    ['Sepia',         '#96784D'],
+    ['PROVIA',        '#8B9FB4'],
+  ];
+  function filmAccent(recipe){
+    if(!recipe || !recipe.filmSim) return null;
+    for(const [key, color] of FILM_ACCENTS){
+      if(recipe.filmSim.indexOf(key) === 0) return color;
+    }
+    return null;
+  }
+
+  const RATIOS = {
+    '1:1':[1,1], '4:5':[4,5], '5:4':[5,4], '3:4':[3,4], '4:3':[4,3], '9:16':[9,16], '16:9':[16,9]
+  };
+  // 4K-class output: 3840px on the long edge, matching UHD video (3840x2160
+  // landscape, 2160x3840 for Reels/Shorts). Every size in the renderer is a
+  // fraction of the canvas, so proportions are unchanged — only the pixel
+  // count grows.
+  const LONG_EDGE = 3840;
+  function sizeForRatio(key){
+    const [a,b] = RATIOS[key] || RATIOS['4:5'];
+    const LONG = LONG_EDGE;
+    if(a === b) return {w:LONG, h:LONG};
+    if(a > b) return {w:LONG, h:Math.round(LONG*b/a)};
+    return {w:Math.round(LONG*a/b), h:LONG};
+  }
+
+  function hasShootingContent(item){
+    if(!item.infoEnabled) return false;
+    const f = item.fields || {};
+    return !!(f.maker || f.model || f.fnum || f.ss || f.iso || f.date || f.photoBy);
+  }
+
+  function hasRecipeContent(item){
+    return !!(item.showRecipe && item.recipe && recipeSummaryLine(item.recipe));
+  }
+
+  // "Pure overlay" = every metadata block actually being shown sits on
+  // the photo. In that mode there is no mat around the photo at all, so
+  // the output keeps the PHOTO's own aspect ratio and the chosen output
+  // ratio is ignored (and disabled in the UI).
+  function usesPureOverlay(item){
+    const positions = [];
+    if(hasShootingContent(item)) positions.push(item.shootingPosition || 'bottom');
+    if(hasRecipeContent(item))   positions.push(item.recipePosition   || 'bottom');
+    return positions.length > 0 && positions.every(p => p === 'overlay');
+  }
+
+  function outputSize(item){
+    if(usesPureOverlay(item) && item.img){
+      const LONG = LONG_EDGE;
+      const ir = item.img.width / item.img.height;
+      if(ir >= 1) return { w:LONG, h:Math.max(1, Math.round(LONG/ir)) };
+      return { w:Math.max(1, Math.round(LONG*ir)), h:LONG };
+    }
+    return sizeForRatio(item.aspectRatio || '4:5');
+  }
+
+  function drawContain(ctx, img, x, y, w, h){
+    const ir = img.width / img.height;
+    const br = w / h;
+    let dw, dh;
+    if(ir > br){ dw = w; dh = w/ir; } else { dh = h; dw = h*ir; }
+    const dx = x + (w-dw)/2, dy = y + (h-dh)/2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    return { dx, dy, dw, dh };
+  }
+
+  // Cover/crop fit — used for the full-bleed "Overlay" info position.
+  function drawCover(ctx, img, x, y, w, h){
+    const ir = img.width / img.height;
+    const br = w / h;
+    let sx, sy, sw, sh;
+    if(ir > br){ sh = img.height; sw = sh*br; sx = (img.width-sw)/2; sy = 0; }
+    else { sw = img.width; sh = sw/br; sx = 0; sy = (img.height-sh)/2; }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  function drawLoadingMsg(ctx, theme, item, cx, cy, W){
+    ctx.fillStyle = theme.muted;
+    ctx.font = `300 ${Math.round(W*0.02)}px ${MONO}`;
+    ctx.textAlign = 'center';
+    const msg = t(item.loadError ? 'imgFailed' : 'imgLoading');
+    ctx.fillText(msg, cx, cy);
+  }
+
+  // Builds the ordered list of text lines for the camera-info block,
+  // independent of where that block ends up being drawn.
+  function buildShootingLines(item, theme, position){
+    if(!item.infoEnabled) return [];
+    const f = item.fields;
+
+    if(position === 'left' || position === 'right'){
+      const lines = [];
+      const titleParts = [f.maker, f.model].filter(Boolean).join(' ');
+      if(titleParts) lines.push({text:titleParts, weight:400, size:0.014, color:theme.ink, ls:0.14, heading:true});
+
+      if(f.fnum) lines.push({text:'f/' + f.fnum, weight:300, size:0.0115, color:theme.muted});
+      if(f.ss)   lines.push({text:f.ss + 's', weight:300, size:0.0115, color:theme.muted});
+      if(f.iso)  lines.push({text:'ISO ' + f.iso, weight:300, size:0.0115, color:theme.muted});
+      if(f.date) lines.push({text:f.date, weight:300, size:0.0115, color:theme.muted});
+
+      if(f.photoBy) lines.push({text:'Photo by ' + f.photoBy, weight:300, size:0.0105, color:theme.muted});
+      return lines;
+    }
+
+    // Top / Bottom / Overlay: everything on a single compact line.
+    const parts = [];
+    const titleParts = [f.maker, f.model].filter(Boolean).join(' ');
+    if(titleParts) parts.push(titleParts);
+    if(f.fnum) parts.push('f/' + f.fnum);
+    if(f.ss) parts.push(f.ss + 's');
+    if(f.iso) parts.push('ISO ' + f.iso);
+    if(f.date) parts.push(f.date);
+    if(f.photoBy) parts.push('Photo by ' + f.photoBy);
+    if(!parts.length) return [];
+    return [{text: parts.join('   ·   '), weight:300, size:0.013, color:theme.ink, ls:0.05}];
+  }
+
+  // Left/Right: every recipe field gets its own line (readable in a narrow
+  // sidebar). Top/Bottom/Overlay: a single compact summary line.
+  function buildRecipeAllFieldsLines(recipe, theme){
+    const lines = [];
+    const push = (text) => lines.push({text, weight:300, size:0.0115, color:theme.muted});
+
+    if(recipe.filmSim) lines.push({text:recipe.filmSim, weight:400, size:0.013, color:theme.ink, ls:0.14, heading:true, accent:filmAccent(recipe)});
+    if(recipe.whiteBalance) push('WB ' + recipe.whiteBalance + (recipe.whiteBalanceShift ? ' ' + recipe.whiteBalanceShift : ''));
+    if(recipe.dynamicRange) push(recipe.dynamicRange);
+    if(recipe.highlight || recipe.shadow) push(`H${recipe.highlight||'0'} / S${recipe.shadow||'0'}`);
+    if(recipe.color) push('Color ' + recipe.color);
+    if(recipe.sharpness) push('Sharp ' + recipe.sharpness);
+    if(recipe.noiseReduction) push('NR ' + recipe.noiseReduction);
+    if(recipe.grainRoughness && recipe.grainRoughness !== 'Off'){
+      push('Grain ' + recipe.grainRoughness + (recipe.grainSize && recipe.grainSize !== 'Off' ? '/' + recipe.grainSize : ''));
+    }
+    if(recipe.colorChrome && recipe.colorChrome !== 'Off') push('CC ' + recipe.colorChrome);
+    if(recipe.colorChromeBlue && recipe.colorChromeBlue !== 'Off') push('CC Blue ' + recipe.colorChromeBlue);
+    if(recipe.clarity != null && recipe.clarity !== 0) push('Clarity ' + (recipe.clarity>0?'+':'') + recipe.clarity);
+    if(recipe.bwAdjustment != null && recipe.bwAdjustment !== 0) push('BW Adj ' + (recipe.bwAdjustment>0?'+':'') + recipe.bwAdjustment);
+
+    return lines;
+  }
+
+  function buildRecipeLines(item, theme, position){
+    if(!item.showRecipe || !item.recipe) return [];
+    if(position === 'left' || position === 'right'){
+      return buildRecipeAllFieldsLines(item.recipe, theme);
+    }
+    const summary = recipeSummaryLine(item.recipe);
+    if(!summary) return [];
+    return [{text:summary, weight:300, size:0.0125, color:theme.ink, ls:0.05, accent:filmAccent(item.recipe)}];
+  }
+
+  // Shrinks a single line's font so it never overflows the space it has
+  // to run along (canvas width for horizontal blocks, canvas height for
+  // vertical ones).
+  // Letter-spacing support. Canvas has no reliable cross-browser
+  // letterSpacing property, so headings are drawn glyph by glyph.
+  // `line.ls` is spacing expressed as a fraction of the font size.
+  function measureLineWidth(ctx, text, weight, px, lsFrac){
+    ctx.font = `${weight} ${px}px ${MONO}`;
+    const base = ctx.measureText(text).width;
+    if(!lsFrac) return base;
+    const n = Array.from(text).length;
+    return base + lsFrac*px*Math.max(0, n-1);
+  }
+
+  function drawLine(ctx, line, x, y, align){
+    ctx.font = `${line.weight} ${line.fontPx}px ${MONO}`;
+    const ls = line.ls ? line.ls*line.fontPx : 0;
+    if(!ls){
+      ctx.textAlign = align;
+      ctx.fillText(line.text, x, y);
+      return;
+    }
+    const chars = Array.from(line.text);
+    let total = 0;
+    for(const c of chars) total += ctx.measureText(c).width;
+    total += ls*Math.max(0, chars.length-1);
+    let cx = align === 'center' ? x - total/2 : (align === 'right' ? x - total : x);
+    ctx.textAlign = 'left';
+    for(const c of chars){
+      ctx.fillText(c, cx, y);
+      cx += ctx.measureText(c).width + ls;
+    }
+  }
+
+  function fitFontSize(ctx, text, weight, basePx, maxWidth, lsFrac){
+    const minPx = Math.max(Math.round(basePx*0.55), 10);
+    if(maxWidth <= 0) return minPx;
+    const w = measureLineWidth(ctx, text, weight, basePx, lsFrac);
+    if(w <= maxWidth) return basePx;
+    return Math.max(minPx, Math.floor(basePx * (maxWidth / w)));
+  }
+
+  // Lays out one info block: first shrinks any line that's individually
+  // too long to fit the available run length, then — if the whole stack
+  // is still too thick — scales every line down together so the block
+  // never eats more than ~34% of the frame, keeping the photo dominant.
+  function measureMaxWidth(ctx, lines){
+    let max = 0;
+    for(const l of lines){
+      const w = measureLineWidth(ctx, l.text, l.weight, l.fontPx, l.ls);
+      if(w > max) max = w;
+    }
+    return max;
+  }
+
+  // orientation 'horizontal' (Top/Bottom): the block's thickness is the
+  // SUM of its stacked line heights (lines run left-to-right, one under
+  // another, full width).
+  // orientation 'vertical' (Left/Right sidebar): lines still render
+  // horizontally and stack top-to-bottom, but the block's thickness is
+  // how WIDE the column needs to be — i.e. the single longest line's
+  // rendered width, not the sum of every line's height.
+  // A one-line summary can be far too long for a narrow column — a recipe
+  // line needs ~1270px but an overlaid portrait photo may offer only 415px.
+  // Shrinking bottoms out at the minimum legible size, so the tail was simply
+  // clipped. Break it at the "·" separators instead and let it run to as many
+  // rows as it needs.
+  const SUMMARY_SEP = '   ·   ';
+  function wrapSummaryLine(ctx, l, W, maxTextWidth){
+    const basePx = Math.round(W*l.size);
+    const minPx = Math.max(Math.round(basePx*0.55), 10);
+    if(maxTextWidth <= 0) return [l];
+    if(measureLineWidth(ctx, l.text, l.weight, minPx, l.ls) <= maxTextWidth) return [l];
+    const parts = l.text.split(/\s+·\s+/).map(s => s.trim()).filter(Boolean);
+    if(parts.length < 2) return [l];
+    const targetPx = Math.max(minPx, Math.round(basePx*0.82));
+    const rows = [];
+    let cur = [];
+    for(const p of parts){
+      const trial = cur.concat([p]).join(SUMMARY_SEP);
+      if(cur.length && measureLineWidth(ctx, trial, l.weight, targetPx, l.ls) > maxTextWidth){
+        rows.push(cur.join(SUMMARY_SEP));
+        cur = [p];
+      } else {
+        cur.push(p);
+      }
+    }
+    if(cur.length) rows.push(cur.join(SUMMARY_SEP));
+    // the accent marker belongs to the first row only
+    return rows.map((t,i) => Object.assign({}, l, { text:t, accent: i===0 ? l.accent : null }));
+  }
+
+  function layoutBlock(ctx, rawLines, W, maxTextWidth, capAxisLength, pad, orientation, capFraction){
+    orientation = orientation || 'horizontal';
+    capFraction = capFraction != null ? capFraction : 0.34;
+    const lineGap = W * 0.014;
+    // Row height is derived from the line's INTENDED size (basePx), never
+    // from the width-fitted fontPx. Otherwise a line that had to shrink to
+    // fit a narrow column ("Grain Weak/Small") would also sit closer to its
+    // neighbours than the lines around it, and the vertical rhythm would
+    // change from photo to photo depending on the recipe's wording.
+    const wrapped = [];
+    rawLines.forEach(l => wrapped.push(...wrapSummaryLine(ctx, l, W, maxTextWidth)));
+    rawLines = wrapped;
+
+    let lines = rawLines.map(l => {
+      const basePx = Math.round(W*l.size);
+      const fontPx = fitFontSize(ctx, l.text, l.weight, basePx, maxTextWidth, l.ls);
+      return { ...l, basePx, fontPx };
+    });
+    let heights = lines.map(l => Math.round(l.basePx*1.45));
+    let total = heights.reduce((a,b) => a+b, 0) + lineGap*Math.max(0, lines.length-1);
+    let maxWidth = measureMaxWidth(ctx, lines);
+
+    const thicknessMetric = orientation === 'vertical' ? maxWidth : total;
+    const cap = capAxisLength * capFraction;
+    if(thicknessMetric + pad*2 > cap && thicknessMetric > 0){
+      const shrink = Math.max(0.35, (cap - pad*2) / thicknessMetric);
+      lines = lines.map(l => ({
+        ...l,
+        basePx: Math.max(9, Math.floor(l.basePx*shrink)),
+        fontPx: Math.max(9, Math.floor(l.fontPx*shrink))
+      }));
+      heights = lines.map(l => Math.round(l.basePx*1.45));
+      total = heights.reduce((a,b) => a+b, 0) + lineGap*Math.max(0, lines.length-1);
+      maxWidth = measureMaxWidth(ctx, lines);
+    }
+
+    return { lines, heights, lineGap, total, maxWidth, pad };
+  }
+
+  // Re-caps an already-laid-out block to a smaller thickness by scaling
+  // every line's font down proportionally. `metricKey` picks which
+  // thickness measure to target ('total' for horizontal blocks,
+  // 'maxWidth' for vertical sidebars). Monospace glyph advances scale
+  // linearly with font size, so maxWidth can be rescaled without
+  // re-measuring.
+  function shrinkLayout(layout, maxMetric, metricKey){
+    metricKey = metricKey || 'total';
+    if(!layout || layout[metricKey] <= maxMetric) return layout;
+    const scale = Math.max(0.3, maxMetric / layout[metricKey]);
+    const lines = layout.lines.map(l => ({
+      ...l,
+      basePx: Math.max(9, Math.floor((l.basePx != null ? l.basePx : l.fontPx)*scale)),
+      fontPx: Math.max(9, Math.floor(l.fontPx*scale))
+    }));
+    const heights = lines.map(l => Math.round(l.basePx*1.45));
+    const total = heights.reduce((a,b) => a+b, 0) + layout.lineGap*Math.max(0, lines.length-1);
+    const maxWidth = layout.maxWidth != null ? layout.maxWidth*scale : layout.maxWidth;
+    return { ...layout, lines, heights, total, maxWidth };
+  }
+
+  function drawHorizontalBlock(ctx, layout, W, blockTop){
+    let cy = blockTop + layout.pad + layout.heights[0]*0.68;
+    layout.lines.forEach((line,i) => {
+      ctx.fillStyle = line.color;
+      drawLine(ctx, line, W/2, cy, 'center');
+
+      // A small film-signature dot sits just left of the recipe line.
+      if(line.accent){
+        const lw = measureLineWidth(ctx, line.text, line.weight, line.fontPx, line.ls);
+        const r = line.fontPx*0.19;
+        const dotX = W/2 - lw/2 - r*3.2;
+        ctx.beginPath();
+        ctx.fillStyle = line.accent;
+        ctx.arc(dotX, cy - line.fontPx*0.32, r, 0, Math.PI*2);
+        ctx.fill();
+      }
+      cy += layout.heights[i] + layout.lineGap;
+    });
+  }
+
+  // Vertical strip (Left/Right): text stays horizontal and readable,
+  // stacked top-to-bottom and centered within the strip's own fixed
+  // width — no 90° rotation. The first line acts as a heading: it gets
+  // a short accent rule and extra breathing room beneath it.
+  function drawSidebarBlock(ctx, layout, side, stripThickness, W, H, theme){
+    const centerX = side === 'left' ? stripThickness/2 : W - stripThickness/2;
+    const hasHeading = layout.lines.length > 1;
+    const headingGap = hasHeading ? layout.lineGap*2.2 : 0;
+    const effectiveTotal = layout.total + headingGap;
+
+    let cy = H/2 - effectiveTotal/2 + layout.heights[0]*0.68;
+    layout.lines.forEach((line,i) => {
+      ctx.fillStyle = line.color;
+      drawLine(ctx, line, centerX, cy, 'center');
+      cy += layout.heights[i] + layout.lineGap;
+
+      if(i === 0 && hasHeading){
+        const ruleY = cy - layout.lineGap*1.1;
+        const accent = line.accent;
+        const ruleW = stripThickness * (accent ? 0.20 : 0.16);
+        ctx.strokeStyle = accent || theme.rule;
+        ctx.lineWidth = Math.max(1, W*(accent ? 0.0018 : 0.0012));
+        ctx.beginPath();
+        ctx.moveTo(centerX - ruleW/2, ruleY);
+        ctx.lineTo(centerX + ruleW/2, ruleY);
+        ctx.stroke();
+        cy += headingGap;
+      }
+    });
+  }
+
+  // Maker credit, set the way Apple marks the back of a product: a single
+  // short line, centred on the bottom edge, very small, widely tracked and
+  // low-contrast — present if you look for it, invisible if you don't.
+  const MAKER_HANDLE = '@bit_y_s';
+  const MAKER_CREDIT = 'Designed by ' + MAKER_HANDLE;
+  function drawMakerCredit(ctx, W, H, theme, pureOverlay, photoRect){
+    const px = Math.max(8, Math.round(W*0.0044));
+    const line = { text: MAKER_CREDIT, weight: 300, fontPx: px, ls: 0.34 };
+    const bottom = pureOverlay ? photoRect.dy + photoRect.dh : H;
+    const y = bottom - Math.max(px*1.6, W*0.0115);
+    const x = pureOverlay ? photoRect.dx + photoRect.dw/2 : W/2;
+    ctx.save();
+    if(pureOverlay){
+      ctx.fillStyle = 'rgba(255,255,255,0.58)';
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = px*1.2;
+    } else {
+      ctx.fillStyle = theme.muted;
+      ctx.globalAlpha = 0.45;
+    }
+    drawLine(ctx, line, x, y, 'center');
+    ctx.restore();
+  }
+
+  function renderToCanvas(targetCtx, item, W, H){
+    const theme = THEMES[item.mode] || THEMES.white;
+    targetCtx.clearRect(0,0,W,H);
+    targetCtx.fillStyle = theme.bg;
+    targetCtx.fillRect(0,0,W,H);
+
+    const shootingPos = item.shootingPosition || 'bottom';
+    const recipePos = item.recipePosition || 'bottom';
+    const shootingLines = buildShootingLines(item, theme, shootingPos);
+    const recipeLines = buildRecipeLines(item, theme, recipePos);
+
+    const sides = { top:[], bottom:[], left:[], right:[] };
+    // Overlaid blocks are grouped by which corner OF THE PHOTO they anchor to,
+    // so the two metadata blocks can sit in different corners independently.
+    const overlayGroups = { 'top-left':[], 'top-right':[], 'bottom-left':[], 'bottom-right':[] };
+    const anchorOf = (a) => overlayGroups[a] ? a : 'bottom-left';
+    if(shootingLines.length){
+      if(sides[shootingPos]) sides[shootingPos].push(...shootingLines);
+      else overlayGroups[anchorOf(item.shootingOverlayAnchor)].push(...shootingLines);
+    }
+    if(recipeLines.length){
+      if(sides[recipePos]) sides[recipePos].push(...recipeLines);
+      else overlayGroups[anchorOf(item.recipeOverlayAnchor)].push(...recipeLines);
+    }
+    const hasOverlay = Object.keys(overlayGroups).some(k => overlayGroups[k].length);
+
+    const pureOverlay = usesPureOverlay(item);
+    // A 3% mat left the photo almost touching the frame edge on whichever
+    // axis it filled — the border read as a rendering accident rather than
+    // a mat. 4.6% is thin enough to keep the photo dominant while clearly
+    // looking intentional.
+    const margin = pureOverlay ? 0 : Math.min(W,H) * 0.046;
+    const padH = H * 0.028, padW = W * 0.028;
+    const gapH = H * 0.014, gapW = W * 0.014;
+
+    // Content-safe-zone minimums for vertical short-form video formats
+    // (Reels / Shorts / YouTube Shorts all use 9:16). These platforms
+    // overlay their own UI — caption/music info along the bottom, and
+    // like/comment/share icons along the lower-right — so we reserve
+    // at least that much space even if the user's own metadata is
+    // smaller, to keep the photo itself from sitting under that UI.
+    const SAFE_ZONES = { '9:16': { top:0.055, bottom:0.18, right:0.13 } };
+
+    // The Left/Right columns get a FIXED width — a fraction of the frame,
+    // never derived from how long the text happens to be. Two photos with
+    // different recipes ("Grain Weak/Small" vs "Grain Strong/Large") would
+    // otherwise produce different column widths, shifting both the text and
+    // the photo. Text is fitted INTO this fixed column instead.
+    const SIDEBAR_W = W * 0.17;
+    // The sidebar's own inset must be at least the mat margin, or its text
+    // sits closer to the canvas edge than the photo does and the border
+    // looks inconsistent from one side of the frame to the other.
+    const sidebarPad = Math.max(padW, margin);
+    const sidebarTextW = Math.max(40, SIDEBAR_W - sidebarPad*2);
+
+    const layoutBySide = {};
+    if(sides.top.length)    layoutBySide.top    = layoutBlock(targetCtx, sides.top,    W, W-margin*1.3, H, padH, 'horizontal', 0.34);
+    if(sides.bottom.length) layoutBySide.bottom = layoutBlock(targetCtx, sides.bottom, W, W-margin*1.3, H, padH, 'horizontal', 0.34);
+    if(sides.left.length)   layoutBySide.left   = layoutBlock(targetCtx, sides.left,   W, sidebarTextW, W, sidebarPad, 'vertical', 0.17);
+    if(sides.right.length)  layoutBySide.right  = layoutBlock(targetCtx, sides.right,  W, sidebarTextW, W, sidebarPad, 'vertical', 0.17);
+
+    const thickness = {
+      top:    sides.top.length    ? layoutBySide.top.total    + layoutBySide.top.pad*2    : margin,
+      bottom: sides.bottom.length ? layoutBySide.bottom.total + layoutBySide.bottom.pad*2 : margin,
+      left:   margin,
+      right:  margin,
+    };
+
+    // Either sidebar being in use reserves the same fixed width on BOTH
+    // sides, so the photo is always exactly centered and lands in the
+    // same place from photo to photo.
+    const symLR = sides.left.length || sides.right.length;
+    if(symLR){
+      thickness.left = SIDEBAR_W;
+      thickness.right = SIDEBAR_W;
+    }
+
+    // The safe zone is applied SYMMETRICALLY — the deepest inset on each
+    // axis is mirrored to the opposite side. Reserving only where the
+    // platform UI actually sits (bottom-heavy, right-heavy) left the photo
+    // visibly off-centre; mirroring keeps it centred while still clearing
+    // the UI on every side.
+    const safeZone = pureOverlay ? null : SAFE_ZONES[item.aspectRatio];
+    const safeV = safeZone ? Math.max(safeZone.top||0, safeZone.bottom||0) * H : 0;
+    const safeH = safeZone ? Math.max(safeZone.left||0, safeZone.right||0) * W : 0;
+
+    // ── Compose photo + captions as ONE block, then centre that block ──
+    // Pinning captions to the frame edge and centring the photo separately
+    // opened a huge void between them whenever the photo's ratio differed
+    // from the frame's (a 3:2 photo in a 3:4 frame left the caption 450px
+    // adrift). Sizing the photo first, then hugging the captions to its real
+    // edges and centring the whole group, keeps the mat even on all sides.
+    const capTopH = sides.top.length    ? layoutBySide.top.total    + layoutBySide.top.pad    : 0;
+    const capBotH = sides.bottom.length ? layoutBySide.bottom.total + layoutBySide.bottom.pad : 0;
+
+    // Outer insets: sidebars (or plain margin) horizontally, safe zone or
+    // margin vertically. Captions are NOT part of the inset any more.
+    const insetL = Math.max(symLR ? thickness.left  + gapW : margin, safeH);
+    const insetR = Math.max(symLR ? thickness.right + gapW : margin, safeH);
+    const insetT = Math.max(margin, safeV);
+    const insetB = Math.max(margin, safeV);
+
+    const availW = Math.max(1, W - insetL - insetR);
+    const availH = Math.max(1, H - insetT - insetB
+                              - capTopH - (capTopH ? gapH : 0)
+                              - capBotH - (capBotH ? gapH : 0));
+
+    // Contain the photo in what's left, then measure the group.
+    let photoW = availW, photoH = availH;
+    if(item.img){
+      const ir = item.img.width / item.img.height;
+      if(ir > availW/availH){ photoW = availW; photoH = availW/ir; }
+      else { photoH = availH; photoW = availH*ir; }
+    }
+    const groupH = capTopH + (capTopH ? gapH : 0) + photoH + (capBotH ? gapH : 0) + capBotH;
+    // Centre the composition in the WHOLE frame; only slide it if that would
+    // intrude on a safe zone. Centring inside the safe band instead made the
+    // bottom void 1.5x the top on 9:16, even though true centring cleared
+    // both zones comfortably.
+    let groupTop = (H - groupH)/2;
+    const minTop = insetT, maxTop = H - insetB - groupH;
+    groupTop = maxTop < minTop ? minTop : Math.min(Math.max(groupTop, minTop), maxTop);
+
+    const photoX = insetL + (availW - photoW)/2;
+    const photoY = groupTop + capTopH + (capTopH ? gapH : 0);
+    const capTopY = groupTop;
+    const capBotY = photoY + photoH + (capBotH ? gapH : 0);
+
+    const imgBoxX = photoX, imgBoxY = photoY;
+    const imgBoxW = photoW, imgBoxH = photoH;
+
+    let photoRect = { dx:imgBoxX, dy:imgBoxY, dw:imgBoxW, dh:imgBoxH };
+    if(item.img){
+      // In pure-overlay mode the canvas already matches the photo's own
+      // ratio, so the photo fills it edge to edge with no mat and no
+      // shadow (a shadow would have nothing to sit on).
+      if(pureOverlay){
+        drawCover(targetCtx, item.img, 0, 0, W, H);
+        photoRect = { dx:0, dy:0, dw:W, dh:H };
+      } else {
+        // A soft, low-opacity shadow lifts the photo off the flat mat so it
+        // reads as a print laid on paper rather than a pasted rectangle.
+        targetCtx.save();
+        targetCtx.shadowColor = item.mode === 'black' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.16)';
+        targetCtx.shadowBlur = W * 0.016;
+        targetCtx.shadowOffsetY = W * 0.004;
+        photoRect = drawContain(targetCtx, item.img, imgBoxX, imgBoxY, imgBoxW, imgBoxH);
+        targetCtx.restore();
+
+        // A whisper-thin edge keeps light photos from bleeding into a
+        // light mat, without reading as a drawn border.
+        targetCtx.strokeStyle = item.mode === 'black' ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.12)';
+        targetCtx.lineWidth = Math.max(1, W*0.0009);
+        targetCtx.strokeRect(photoRect.dx, photoRect.dy, photoRect.dw, photoRect.dh);
+      }
+    } else {
+      targetCtx.fillStyle = theme.rule;
+      targetCtx.fillRect(imgBoxX, imgBoxY, imgBoxW, imgBoxH);
+      drawLoadingMsg(targetCtx, theme, item, imgBoxX + imgBoxW/2, imgBoxY + imgBoxH/2, W);
+    }
+
+    if(sides.top.length){
+      // drawHorizontalBlock puts its pad ABOVE the text. For a top caption
+      // that pad belongs between the text and the photo, not between the
+      // text and the frame edge — otherwise the top margin runs one pad
+      // deeper than the bottom one and the composition sits low.
+      drawHorizontalBlock(targetCtx, layoutBySide.top, W, capTopY - layoutBySide.top.pad);
+    }
+    if(sides.bottom.length){
+      drawHorizontalBlock(targetCtx, layoutBySide.bottom, W, capBotY);
+    }
+    if(sides.left.length){
+      drawSidebarBlock(targetCtx, layoutBySide.left, 'left', thickness.left, W, H, theme);
+    }
+    if(sides.right.length){
+      drawSidebarBlock(targetCtx, layoutBySide.right, 'right', thickness.right, W, H, theme);
+    }
+
+    // Overlay caption(s) — confined to the PHOTO's own rendered bounds.
+    // Anchoring to the frame box instead would let the scrim bleed onto the
+    // mat whenever the photo is letterboxed inside a differently-shaped
+    // frame. In pure-overlay mode the photo fills the frame exactly, so
+    // this is identical there and stays consistent across source ratios.
+    if(hasOverlay){
+      const pad = W * 0.03;
+      const barW = W * 0.0045;
+      const barGap = W * 0.018;
+      const px = photoRect.dx, py = photoRect.dy;
+      const pw = photoRect.dw, ph = photoRect.dh;
+      // Two captions pinned to opposite corners of the SAME edge sit on the
+      // same baseline, so each may only claim half the width (less a gutter)
+      // — otherwise both lay out at full width and collide in the middle.
+      const gutter = W * 0.03;
+      const sharesEdge = (a) => {
+        const other = a.indexOf('left') > 0
+          ? a.replace('left','right')
+          : a.replace('right','left');
+        return overlayGroups[other] && overlayGroups[other].length > 0;
+      };
+      const fullTextW = pw - pad*2 - barW - barGap;
+      const halfTextW = (pw - pad*2 - gutter)/2 - barW - barGap;
+
+      // Overlay type is sized against the PHOTO, not the canvas. Sizing it
+      // from the canvas made the caption balloon whenever the photo was
+      // letterboxed — it ranged from 1.3% to 3.6% of the photo's width
+      // across ratios. Clamped so a very narrow photo keeps legible type and
+      // a full-bleed photo (pure overlay) is unchanged.
+      const overlayRefW = Math.min(W, Math.max(pw*1.55, W*0.45));
+
+      const layouts = {};
+      Object.keys(overlayGroups).forEach(a => {
+        if(overlayGroups[a].length){
+          const w = sharesEdge(a) ? halfTextW : fullTextW;
+          layouts[a] = layoutBlock(targetCtx, overlayGroups[a], overlayRefW, Math.max(40, w), ph, pad, 'horizontal', 0.34);
+        }
+      });
+
+      // One scrim per edge, tall enough for whichever corner block on that
+      // edge is tallest — two corners on the same edge share one gradient.
+      const edgeH = (a1,a2) => Math.max(layouts[a1] ? layouts[a1].total : 0,
+                                        layouts[a2] ? layouts[a2].total : 0);
+      const topH = edgeH('top-left','top-right');
+      const botH = edgeH('bottom-left','bottom-right');
+
+      if(botH > 0){
+        const h = Math.min(ph, botH + pad*3);
+        const g = targetCtx.createLinearGradient(0, py+ph-h, 0, py+ph);
+        g.addColorStop(0,'rgba(0,0,0,0)');
+        g.addColorStop(0.35,'rgba(0,0,0,0.16)');
+        g.addColorStop(0.7,'rgba(0,0,0,0.42)');
+        g.addColorStop(1,'rgba(0,0,0,0.66)');
+        targetCtx.fillStyle = g;
+        targetCtx.fillRect(px, py+ph-h, pw, h);
+      }
+      if(topH > 0){
+        const h = Math.min(ph, topH + pad*3);
+        const g = targetCtx.createLinearGradient(0, py, 0, py+h);
+        g.addColorStop(0,'rgba(0,0,0,0.66)');
+        g.addColorStop(0.3,'rgba(0,0,0,0.42)');
+        g.addColorStop(0.65,'rgba(0,0,0,0.16)');
+        g.addColorStop(1,'rgba(0,0,0,0)');
+        targetCtx.fillStyle = g;
+        targetCtx.fillRect(px, py, pw, h);
+      }
+
+      Object.keys(layouts).forEach(a => {
+        const L = layouts[a];
+        const isTop = a.indexOf('top') === 0;
+        const isLeft = a.indexOf('left') > 0;
+        const blockTop = isTop ? py + pad : py + ph - L.total - pad;
+        const align = isLeft ? 'left' : 'right';
+        const textX = isLeft ? px + pad + barW + barGap
+                             : px + pw - pad - barW - barGap;
+        const barX  = isLeft ? px + pad : px + pw - pad - barW;
+
+        const accentLine = L.lines.find(l => l.accent);
+        targetCtx.fillStyle = accentLine ? accentLine.accent : 'rgba(255,255,255,0.55)';
+        targetCtx.fillRect(barX, blockTop - L.heights[0]*0.22, barW, L.total);
+
+        let cy = blockTop + L.heights[0]*0.68;
+        L.lines.forEach((line,i) => {
+          targetCtx.fillStyle = 'rgba(255,255,255,0.95)';
+          drawLine(targetCtx, line, textX, cy, align);
+          cy += L.heights[i] + L.lineGap;
+        });
+      });
+    }
+
+    drawMakerCredit(targetCtx, W, H, theme, pureOverlay, photoRect);
+  }
+
+  function draw(){
+    if(curIndex < 0){ return; }
+    placeholder.style.display = 'none';
+    const item = items[curIndex];
+    // The preview never needs the full 4K buffer — it is displayed at well
+    // under 1000px. Rendering it at export size would put two ~15MP canvases
+    // in memory at once during export, which exceeds iOS Safari's total
+    // canvas budget. Everything in the renderer is proportional, so a
+    // smaller preview is pixel-for-pixel the same composition.
+    const { w, h } = outputSize(item);
+    const PREVIEW_LONG = 1200;
+    const scale = Math.min(1, PREVIEW_LONG / Math.max(w, h));
+    const pw = Math.max(1, Math.round(w*scale));
+    const ph = Math.max(1, Math.round(h*scale));
+    canvas.width = pw;
+    canvas.height = ph;
+    renderToCanvas(ctx, item, pw, ph);
+    updateRatioAvailability();
+    updateAccent();
+  }
+
+  // wait for webfonts before first paint so measurements/text look right
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(() => { if(curIndex >= 0) draw(); });
+  }
+
+  // ---------- Convert & Save ----------
+  el('convertBtn').addEventListener('click', async () => {
+    if(items.length === 0) return;
+    const btn = el('convertBtn');
+    btn.disabled = true;
+    const originalText = btn.textContent;
+
+    if(document.fonts && document.fonts.ready){
+      try{ await document.fonts.ready; }catch(e){}
+    }
+
+    // Release the preview buffer for the duration of the export so only one
+    // large canvas is alive at a time — this is what keeps memory-limited
+    // phones under their total canvas budget.
+    const prevW = canvas.width, prevH = canvas.height;
+    canvas.width = canvas.height = 1;
+
+    const off = document.createElement('canvas');
+    const offCtx = off.getContext('2d');
+
+    for(let i=0;i<items.length;i++){
+      const item = items[i];
+      btn.textContent = `${t('saving')} ${i+1} / ${items.length}...`;
+      let { w, h } = outputSize(item);
+      let blobOut = null;
+      // Memory-constrained phones can refuse a 15MP canvas: toBlob then
+      // yields null. Step the resolution down rather than failing silently.
+      for(const factor of [1, 0.66, 0.5]){
+        const tw = Math.max(1, Math.round(w*factor));
+        const th = Math.max(1, Math.round(h*factor));
+        try{
+          off.width = tw; off.height = th;
+          renderToCanvas(offCtx, item, tw, th);
+          blobOut = await new Promise(res => off.toBlob(res, 'image/png'));
+        }catch(e){ blobOut = null; }
+        if(blobOut) break;
+      }
+      if(!blobOut){ showNotice(tf('exportFail', {name:item.name})); continue; }
+      await new Promise(resolve => {
+        ((blob) => {
+          const a = document.createElement('a');
+          const base = item.name.replace(/\.[^.]+$/, '');
+          const ratioTag = usesPureOverlay(item) ? 'overlay' : (item.aspectRatio || '4:5').replace(':','x');
+          a.href = URL.createObjectURL(blob);
+          a.download = `RECIPE_${base}_${item.mode}_${ratioTag}.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => { URL.revokeObjectURL(a.href); resolve(); }, 150);
+        })(blobOut);
+      });
+      await new Promise(r => setTimeout(r, 250));
+    }
+    off.width = off.height = 1;   // release the export buffer
+    canvas.width = prevW; canvas.height = prevH;
+    draw();                        // repaint the preview
+    btn.textContent = originalText;
+    btn.disabled = false;
+  });
+
+  // Privacy policy dialog
+  (function(){
+    const dlg = el('privacyDialog');
+    const openBtn = el('privacyOpen');
+    const closeBtn = el('privacyClose');
+    if(!dlg || !openBtn) return;
+    openBtn.addEventListener('click', () => {
+      if(typeof dlg.showModal === 'function') dlg.showModal();
+      else dlg.setAttribute('open','');
+    });
+    if(closeBtn) closeBtn.addEventListener('click', () => dlg.close());
+    // click the backdrop to dismiss
+    dlg.addEventListener('click', (e) => { if(e.target === dlg) dlg.close(); });
+  })();
+
+  document.querySelectorAll('#langs button').forEach(b => {
+    b.addEventListener('click', () => applyLang(b.dataset.lang));
+  });
+  applyLang(detectLang());
+
+  updateCounts();
+})();
+</script>
+<!-- ────────────────────────────────────────────────────────────────
+     방문 통계 (Cloudflare Web Analytics)
+     dash.cloudflare.com → Analytics & Logs → Web Analytics 에서
+     사이트를 추가하면 아래와 같은 스니펫과 토큰을 받습니다.
+     TOKEN 자리를 발급받은 값으로 바꾸고 주석을 해제하세요.
+     쿠키를 사용하지 않으므로 별도의 동의 배너가 필요하지 않습니다.
+
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "여기에_발급받은_토큰"}'></script>
+     ──────────────────────────────────────────────────────────────── -->
+</body>
+</html>
