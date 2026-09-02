@@ -1135,6 +1135,9 @@
       colorChromeBlue: fuji[0x104e] != null ? (FUJI_MAPS.colorChrome[fuji[0x104e]] || null) : null,
       whiteBalance: fuji[0x1002] != null ? (FUJI_MAPS.whiteBalance[fuji[0x1002]] || null) : null,
       whiteBalanceShift: wbShift,
+      // Kelvin is only recorded when white balance was dialled in as a colour
+      // temperature; presets (Auto, Daylight...) leave this tag absent.
+      colorTemperature: (fuji[0x1005] != null && fuji[0x1005] > 0) ? fuji[0x1005] : null,
       clarity: fuji[0x100f] != null ? (fuji[0x100f]/1000) : null,
       bwAdjustment: (bwName && fuji[0x1049] != null) ? fuji[0x1049] : null
     };
@@ -1481,7 +1484,7 @@
     if(r.grainRoughness) rows.push([rk('grain'), r.grainRoughness + (r.grainSize ? ' / ' + r.grainSize : '')]);
     if(r.colorChrome) rows.push([rk('colorChrome'), r.colorChrome]);
     if(r.colorChromeBlue) rows.push([rk('colorChromeBlue'), r.colorChromeBlue]);
-    if(r.whiteBalance) rows.push([rk('whiteBalance'), r.whiteBalance + (r.whiteBalanceShift ? ' (' + r.whiteBalanceShift + ')' : '')]);
+    if(r.whiteBalance || r.colorTemperature) rows.push([rk('whiteBalance'), wbText(r)]);
     if(r.clarity != null && r.clarity !== 0) rows.push([rk('clarity'), (r.clarity>0?'+':'') + r.clarity]);
     if(r.bwAdjustment != null) rows.push([rk('bw'), (r.bwAdjustment>0?'+':'') + r.bwAdjustment]);
 
@@ -1498,11 +1501,22 @@
   // Every field that was actually read from the file — the frame is a record
   // of the recipe, so a partial list defeats the point. Long results wrap onto
   // further lines rather than being trimmed.
+  // "Auto 5500K R+2 B-4" — preset, colour temperature and shift in one string,
+  // with each piece omitted when the camera did not record it.
+  function wbText(recipe){
+    if(!recipe) return '';
+    const bits = [];
+    if(recipe.whiteBalance) bits.push(recipe.whiteBalance);
+    if(recipe.colorTemperature) bits.push(recipe.colorTemperature + 'K');
+    if(recipe.whiteBalanceShift) bits.push(recipe.whiteBalanceShift);
+    return bits.join(' ');
+  }
+
   function recipeSummaryParts(recipe){
     if(!recipe) return [];
     const parts = [];
     if(recipe.filmSim) parts.push(recipe.filmSim);
-    if(recipe.whiteBalance) parts.push('WB ' + recipe.whiteBalance + (recipe.whiteBalanceShift ? ' ' + recipe.whiteBalanceShift : ''));
+    if(recipe.whiteBalance || recipe.colorTemperature) parts.push('WB ' + wbText(recipe));
     if(recipe.dynamicRange) parts.push(recipe.dynamicRange);
     if(recipe.highlight || recipe.shadow) parts.push(`H${recipe.highlight||'0'}/S${recipe.shadow||'0'}`);
     if(recipe.color) parts.push('Color ' + recipe.color);
@@ -1773,7 +1787,7 @@
     const push = (text) => lines.push({text, weight:300, size:0.0115, color:theme.muted});
 
     if(recipe.filmSim) lines.push({text:recipe.filmSim, weight:400, size:0.013, color:theme.ink, ls:0.14, heading:true, accent:filmAccent(recipe)});
-    if(recipe.whiteBalance) push('WB ' + recipe.whiteBalance + (recipe.whiteBalanceShift ? ' ' + recipe.whiteBalanceShift : ''));
+    if(recipe.whiteBalance || recipe.colorTemperature) push('WB ' + wbText(recipe));
     if(recipe.dynamicRange) push(recipe.dynamicRange);
     if(recipe.highlight || recipe.shadow) push(`H${recipe.highlight||'0'} / S${recipe.shadow||'0'}`);
     if(recipe.color) push('Color ' + recipe.color);
