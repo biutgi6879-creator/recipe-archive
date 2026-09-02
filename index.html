@@ -313,16 +313,16 @@
 
   /* buttons */
   .mode-row{display:flex;gap:6px;margin-bottom:12px;}
-  .mode-btn,.ratio-btn,.pos-btn,.recipe-pos-btn{
+  .mode-btn,.ratio-btn,.pos-btn,.recipe-pos-btn,.format-btn{
     border:1px solid var(--hairline-2);background:transparent;
     color:var(--muted);cursor:pointer;font-family:var(--mono);font-weight:300;
     border-radius:var(--r);letter-spacing:0.06em;
     transition:border-color .15s,color .15s,background .15s;
   }
   .mode-btn{flex:1;padding:8px 4px;font-size:11px;}
-  .ratio-btn,.pos-btn,.recipe-pos-btn{padding:7px 9px;font-size:10.5px;}
-  .mode-btn:hover,.ratio-btn:hover,.pos-btn:hover,.recipe-pos-btn:hover{color:var(--ink);}
-  .mode-btn.active,.ratio-btn.active,.pos-btn.active,.recipe-pos-btn.active{
+  .ratio-btn,.pos-btn,.recipe-pos-btn,.format-btn{padding:7px 9px;font-size:10.5px;}
+  .mode-btn:hover,.ratio-btn:hover,.pos-btn:hover,.recipe-pos-btn:hover,.format-btn:hover{color:var(--ink);}
+  .mode-btn.active,.ratio-btn.active,.pos-btn.active,.recipe-pos-btn.active,.format-btn.active{
     border-color:var(--accent);
     color:var(--accent);
     background:color-mix(in srgb, var(--accent) 9%, transparent);
@@ -545,9 +545,15 @@
       </div>
     </div>
 
-    <div class="field">
-      <label data-i18n="date">Date</label>
-      <input type="text" id="fDate" placeholder="2026.08.19" />
+    <div class="row2">
+      <div class="field">
+        <label data-i18n="date">Date</label>
+        <input type="text" id="fDate" placeholder="2026.08.19" />
+      </div>
+      <div class="field">
+        <label data-i18n="whiteBalance">White balance</label>
+        <input type="text" id="fWb" placeholder="Auto" />
+      </div>
     </div>
 
     <div class="field">
@@ -624,6 +630,15 @@
     </div>
 
     <div class="sect"></div>
+    <p class="eyebrow" data-i18n="fileFormat">File format</p>
+    <div class="ratio-grid" id="formatRow">
+      <button class="format-btn active" data-format="png">PNG</button>
+      <button class="format-btn" data-format="jpeg">JPEG</button>
+      <button class="format-btn" data-format="webp">WEBP</button>
+    </div>
+    <p class="subnote" id="formatNote" style="text-align:left;margin:-6px 0 14px;"></p>
+
+    <div class="sect"></div>
     <p class="eyebrow" data-i18n="mat">Mat</p>
     <div class="mode-row">
       <button class="mode-btn active" data-mode="white" data-i18n="matWhite">White</button>
@@ -696,6 +711,13 @@
       shareReady:'프레임이 준비되었습니다. 아래 버튼을 눌러 사진 앱에 저장하세요.',
       shareFailed:'저장하지 못했습니다. 다시 시도해 주세요.',
       zipSaved:'{n}장을 ZIP 파일 하나로 저장했습니다.',
+      savedToDownloads:'다운로드 폴더에 저장했습니다. 갤러리에 바로 넣으려면 아래 버튼을 사용하세요.',
+      shareInstead:'다른 앱으로 보내기',
+      fileFormat:'파일 형식',
+      fmt_png:'무손실 · 화질 최상 · 용량 큼',
+      fmt_jpeg:'용량 작음 · 어디서나 열림 · 사진에 권장',
+      fmt_webp:'용량 가장 작음 · 일부 구형 앱에서 열리지 않을 수 있음',
+      whiteBalance:'화이트 밸런스',
       privacyTitle:'개인정보처리방침', close:'닫기',
       trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS, REALA는 FUJIFILM Corporation의 상표입니다. Recipe Archive는 후지필름과 제휴 관계가 없으며, 사진에 기록된 촬영 정보를 표시하기 위해 해당 명칭을 사용합니다.',
       rk:{filmSim:'필름 시뮬레이션', dynamicRange:'다이나믹 레인지', highlight:'하이라이트', shadow:'섀도우',
@@ -743,6 +765,13 @@
       shareReady:'Your frames are ready. Tap below to save them to Photos.',
       shareFailed:'Could not save. Please try again.',
       zipSaved:'Saved {n} frames as a single ZIP file.',
+      savedToDownloads:'Saved to your Downloads folder. Use the button below to send it straight to an app.',
+      shareInstead:'Send to another app',
+      fileFormat:'File format',
+      fmt_png:'Lossless · best quality · largest file',
+      fmt_jpeg:'Smaller file · opens everywhere · best for photos',
+      fmt_webp:'Smallest file · some older apps cannot open it',
+      whiteBalance:'White balance',
       privacyTitle:'Privacy policy', close:'Close',
       trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS and REALA are trademarks of FUJIFILM Corporation. Recipe Archive is not affiliated with or endorsed by FUJIFILM, and uses these names only to describe the settings recorded in your photo.',
       rk:{filmSim:'Film Sim', dynamicRange:'Dynamic Range', highlight:'Highlight', shadow:'Shadow',
@@ -790,6 +819,13 @@
       shareReady:'フレームの準備ができました。下のボタンから写真アプリに保存してください。',
       shareFailed:'保存できませんでした。もう一度お試しください。',
       zipSaved:'{n}枚をZIPファイル1つにまとめて保存しました。',
+      savedToDownloads:'ダウンロードフォルダに保存しました。ギャラリーに直接入れるには下のボタンをお使いください。',
+      shareInstead:'他のアプリに送る',
+      fileFormat:'ファイル形式',
+      fmt_png:'可逆圧縮・最高画質・容量大',
+      fmt_jpeg:'容量小・どこでも開ける・写真におすすめ',
+      fmt_webp:'容量最小・一部の古いアプリでは開けない場合あり',
+      whiteBalance:'ホワイトバランス',
       privacyTitle:'プライバシーポリシー', close:'閉じる',
       trademark:'FUJIFILM、Velvia、ASTIA、PROVIA、Classic Chrome、ETERNA、ACROS、REALAはFUJIFILM Corporationの商標です。Recipe Archiveは富士フイルムと提携関係にはなく、写真に記録された撮影設定を表示する目的でこれらの名称を使用しています。',
       rk:{filmSim:'フィルムシミュレーション', dynamicRange:'ダイナミックレンジ', highlight:'ハイライト', shadow:'シャドウ',
@@ -840,6 +876,7 @@
       const v = t(el2.dataset.i18nHtml);
       if(v != null) el2.innerHTML = v;
     });
+    updateFormatNote();
     const pb = el('privacyBody');
     if(pb) pb.innerHTML = t('privacyBody');
     document.querySelectorAll('#langs button').forEach(b => {
@@ -947,6 +984,19 @@
         if(exifIFD.tags[0x829A] != null) result.exposureTime = exifIFD.tags[0x829A];
         if(exifIFD.tags[0x8827] != null) result.iso = exifIFD.tags[0x8827];
         if(exifIFD.tags[0x9003]) result.dateTimeOriginal = String(exifIFD.tags[0x9003]);
+        // White balance: LightSource (0x9208) names the actual preset when the
+        // camera recorded one; WhiteBalance (0xA403) only distinguishes auto
+        // from manual, so it is the fallback.
+        const LIGHT_SOURCE = {
+          1:'Daylight', 2:'Fluorescent', 3:'Tungsten', 4:'Flash', 9:'Fine Weather',
+          10:'Cloudy', 11:'Shade', 12:'Daylight Fluorescent', 13:'Day White Fluorescent',
+          14:'Cool White Fluorescent', 15:'White Fluorescent', 17:'Standard Light A',
+          18:'Standard Light B', 19:'Standard Light C', 20:'D55', 21:'D65',
+          22:'D75', 23:'D50', 24:'ISO Studio Tungsten'
+        };
+        const ls = exifIFD.tags[0x9208];
+        if(ls != null && LIGHT_SOURCE[ls]) result.whiteBalance = LIGHT_SOURCE[ls];
+        else if(exifIFD.tags[0xA403] != null) result.whiteBalance = exifIFD.tags[0xA403] === 0 ? 'Auto' : 'Manual';
 
         // Fujifilm film simulation recipe lives in the proprietary MakerNote
         if(result.maker && /FUJIFILM/i.test(result.maker) && exifIFD.entryOffsets[0x927C] != null){
@@ -1121,7 +1171,7 @@
   const fields = {
     maker: el('fMaker'), model: el('fModel'),
     fnum: el('fFnum'), ss: el('fSS'), iso: el('fISO'),
-    date: el('fDate'), photoBy: el('fPhotoBy')
+    date: el('fDate'), wb: el('fWb'), photoBy: el('fPhotoBy')
   };
 
   // ---------- File loading ----------
@@ -1153,7 +1203,7 @@
         url: '',
         img: null,
         loadError: false,
-        fields: { maker:'', model:'', fnum:'', ss:'', iso:'', date:'', photoBy:'' },
+        fields: { maker:'', model:'', fnum:'', ss:'', iso:'', date:'', wb:'', photoBy:'' },
         recipe: null,
         showRecipe: true,
         mode: 'white',
@@ -1208,6 +1258,7 @@
             item.fields.ss = fmtSS(exif.exposureTime);
             item.fields.iso = exif.iso != null ? String(exif.iso) : '';
             item.fields.date = fmtDate(exif.dateTimeOriginal);
+            item.fields.wb = exif.whiteBalance || '';
             item.recipe = exif.recipe || null;
             if(items[curIndex] === item) syncFormFromItem(item);
             draw();
@@ -1378,6 +1429,7 @@
     fields.ss.value = item.fields.ss;
     fields.iso.value = item.fields.iso;
     fields.date.value = item.fields.date;
+    fields.wb.value = item.fields.wb || '';
     fields.photoBy.value = item.fields.photoBy;
     el('infoEnabled').checked = item.infoEnabled;
     document.querySelectorAll('.mode-btn').forEach(b => {
@@ -1693,6 +1745,7 @@
       if(f.fnum) lines.push({text:'f/' + f.fnum, weight:300, size:0.0115, color:theme.muted});
       if(f.ss)   lines.push({text:f.ss + 's', weight:300, size:0.0115, color:theme.muted});
       if(f.iso)  lines.push({text:'ISO ' + f.iso, weight:300, size:0.0115, color:theme.muted});
+      if(f.wb)   lines.push({text:'WB ' + f.wb, weight:300, size:0.0115, color:theme.muted});
       if(f.date) lines.push({text:f.date, weight:300, size:0.0115, color:theme.muted});
 
       if(f.photoBy) lines.push({text:'Photo by ' + f.photoBy, weight:300, size:0.0105, color:theme.muted});
@@ -1706,6 +1759,7 @@
     if(f.fnum) parts.push('f/' + f.fnum);
     if(f.ss) parts.push(f.ss + 's');
     if(f.iso) parts.push('ISO ' + f.iso);
+    if(f.wb) parts.push('WB ' + f.wb);
     if(f.date) parts.push(f.date);
     if(f.photoBy) parts.push('Photo by ' + f.photoBy);
     if(!parts.length) return [];
@@ -2273,6 +2327,47 @@
     document.fonts.ready.then(() => { if(curIndex >= 0) draw(); });
   }
 
+  // ---------- Output format ----------
+  // Browsers only encode what they ship an encoder for. toBlob silently falls
+  // back to PNG for anything unsupported (HEIC included — no browser can write
+  // it), so each candidate is probed once and unsupported ones are hidden.
+  const FORMATS = {
+    png:  { mime:'image/png',  ext:'png',  quality: undefined },
+    jpeg: { mime:'image/jpeg', ext:'jpg',  quality: 0.94 },
+    webp: { mime:'image/webp', ext:'webp', quality: 0.94 }
+  };
+  let outputFormat = 'png';
+
+  function formatSupported(key){
+    const f = FORMATS[key];
+    if(!f) return false;
+    if(key === 'png') return true;   // required by the spec
+    try{
+      const probe = document.createElement('canvas');
+      probe.width = probe.height = 1;
+      return probe.toDataURL(f.mime).indexOf('data:' + f.mime) === 0;
+    }catch(e){ return false; }
+  }
+
+  function initFormatButtons(){
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      const key = btn.dataset.format;
+      if(!formatSupported(key)){ btn.hidden = true; return; }
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        outputFormat = key;
+        updateFormatNote();
+      });
+    });
+    updateFormatNote();
+  }
+
+  function updateFormatNote(){
+    const n = el('formatNote');
+    if(n) n.textContent = t('fmt_' + outputFormat);
+  }
+
   // ---------- ZIP (store method, no external library) ----------
   // PNG is already compressed, so entries are stored uncompressed. This keeps
   // the writer tiny and avoids pulling in a dependency.
@@ -2368,7 +2463,7 @@
     canvas.width = canvas.height = 1;
 
     const off = document.createElement('canvas');
-    const offCtx = off.getContext('2d');
+    const offCtx = off.getContext('2d', { alpha: outputFormat === 'png' });
 
     const outputs = [];
     for(let i=0;i<items.length;i++){
@@ -2384,14 +2479,16 @@
         try{
           off.width = tw; off.height = th;
           renderToCanvas(offCtx, item, tw, th);
-          blobOut = await new Promise(res => off.toBlob(res, 'image/png'));
+          const fmt = FORMATS[outputFormat] || FORMATS.png;
+          blobOut = await new Promise(res => off.toBlob(res, fmt.mime, fmt.quality));
         }catch(e){ blobOut = null; }
         if(blobOut) break;
       }
       if(!blobOut){ showNotice(tf('exportFail', {name:item.name})); continue; }
       const base = item.name.replace(/\.[^.]+$/, '');
       const ratioTag = usesPureOverlay(item) ? 'overlay' : (item.aspectRatio || '4:5').replace(':','x');
-      outputs.push({ name: `RECIPE_${base}_${item.mode}_${ratioTag}.png`, blob: blobOut });
+      const ext = (FORMATS[outputFormat] || FORMATS.png).ext;
+      outputs.push({ name: `RECIPE_${base}_${item.mode}_${ratioTag}.${ext}`, blob: blobOut });
     }
     off.width = off.height = 1;   // release the export buffer
     canvas.width = prevW; canvas.height = prevH;
@@ -2420,10 +2517,23 @@
     return (navigator.maxTouchPoints || 0) > 0;
   }
 
-  function canShareFiles(files){
-    if(!isTouchDevice()) return false;
+  // iOS only reaches the photo library through the share sheet. Android's
+  // share sheet lists apps to send to and offers no "save to gallery", while a
+  // normal download lands in Downloads where gallery apps index it — so
+  // Android and desktop download, and share stays available as an extra.
+  function isIOS(){
+    const ua = navigator.userAgent || '';
+    if(/iPad|iPhone|iPod/.test(ua)) return true;
+    return /Mac/.test(ua) && (navigator.maxTouchPoints || 0) > 1;   // iPadOS
+  }
+
+  function shareAvailable(files){
     try{ return !!(navigator.canShare && navigator.share && navigator.canShare({ files })); }
     catch(e){ return false; }
+  }
+
+  function canShareFiles(files){
+    return isIOS() && shareAvailable(files);
   }
 
   function downloadBlob(blob, name){
@@ -2444,7 +2554,7 @@
 
     let files = [];
     try{
-      files = outputs.map(o => new File([o.blob], o.name, { type: 'image/png' }));
+      files = outputs.map(o => new File([o.blob], o.name, { type: o.blob.type || 'image/png' }));
     }catch(e){ files = []; }
 
     if(files.length && canShareFiles(files)){
@@ -2468,7 +2578,17 @@
       showNotice(tf('zipSaved', { n: outputs.length }));
     } else {
       downloadBlob(outputs[0].blob, outputs[0].name);
-      showNotice('');
+      showNotice(isTouchDevice() ? t('savedToDownloads') : '');
+    }
+
+    // On Android the file is now in Downloads; offer the share sheet as well so
+    // it can be pushed straight into a gallery or messaging app.
+    if(files.length && !isIOS() && isTouchDevice() && shareAvailable(files)){
+      pendingShare = files;
+      if(shareBtn){
+        shareBtn.hidden = false;
+        shareBtn.textContent = t('shareInstead');
+      }
     }
   }
 
@@ -2507,6 +2627,7 @@
   document.querySelectorAll('#langs button').forEach(b => {
     b.addEventListener('click', () => applyLang(b.dataset.lang));
   });
+  initFormatButtons();
   applyLang(detectLang());
 
   updateCounts();
