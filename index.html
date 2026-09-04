@@ -20,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200;300;400;500&family=Nanum+Gothic+Coding:wght@400;700&family=M+PLUS+1+Code:wght@200;300;400;500&display=swap" />
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200;300;400&family=Nanum+Gothic+Coding&family=M+PLUS+1+Code:wght@200;300;400&display=swap" />
 <style>
   :root{
     /* Graphite bench, cool and desaturated — no neon, no brass. */
@@ -557,6 +557,15 @@
     </div>
 
     <div class="field">
+      <label data-i18n="lens">Lens</label>
+      <input type="text" id="fLens" placeholder="XF23mmF2.8 R WR" />
+    </div>
+    <div class="apply-all">
+      <input type="checkbox" id="showLens" checked />
+      <label for="showLens"><span data-i18n="showLens">프레임에 렌즈 표시</span></label>
+    </div>
+
+    <div class="field">
       <label data-i18n="photoBy">Photo by</label>
       <input type="text" id="fPhotoBy" placeholder="@yourname" />
     </div>
@@ -718,6 +727,8 @@
       fmt_jpeg:'용량 작음 · 어디서나 열림 · 사진에 권장',
       fmt_webp:'용량 가장 작음 · 일부 구형 앱에서 열리지 않을 수 있음',
       whiteBalance:'화이트 밸런스',
+      lens:'렌즈',
+      showLens:'프레임에 렌즈 표시',
       privacyTitle:'개인정보처리방침', close:'닫기',
       trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS, REALA는 FUJIFILM Corporation의 상표입니다. Recipe Archive는 후지필름과 제휴 관계가 없으며, 사진에 기록된 촬영 정보를 표시하기 위해 해당 명칭을 사용합니다.',
       rk:{filmSim:'필름 시뮬레이션', dynamicRange:'다이나믹 레인지', highlight:'하이라이트', shadow:'섀도우',
@@ -772,6 +783,8 @@
       fmt_jpeg:'Smaller file · opens everywhere · best for photos',
       fmt_webp:'Smallest file · some older apps cannot open it',
       whiteBalance:'White balance',
+      lens:'Lens',
+      showLens:'Show lens on the frame',
       privacyTitle:'Privacy policy', close:'Close',
       trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS and REALA are trademarks of FUJIFILM Corporation. Recipe Archive is not affiliated with or endorsed by FUJIFILM, and uses these names only to describe the settings recorded in your photo.',
       rk:{filmSim:'Film Sim', dynamicRange:'Dynamic Range', highlight:'Highlight', shadow:'Shadow',
@@ -826,6 +839,8 @@
       fmt_jpeg:'容量小・どこでも開ける・写真におすすめ',
       fmt_webp:'容量最小・一部の古いアプリでは開けない場合あり',
       whiteBalance:'ホワイトバランス',
+      lens:'レンズ',
+      showLens:'フレームにレンズを表示',
       privacyTitle:'プライバシーポリシー', close:'閉じる',
       trademark:'FUJIFILM、Velvia、ASTIA、PROVIA、Classic Chrome、ETERNA、ACROS、REALAはFUJIFILM Corporationの商標です。Recipe Archiveは富士フイルムと提携関係にはなく、写真に記録された撮影設定を表示する目的でこれらの名称を使用しています。',
       rk:{filmSim:'フィルムシミュレーション', dynamicRange:'ダイナミックレンジ', highlight:'ハイライト', shadow:'シャドウ',
@@ -994,6 +1009,16 @@
           18:'Standard Light B', 19:'Standard Light C', 20:'D55', 21:'D65',
           22:'D75', 23:'D50', 24:'ISO Studio Tungsten'
         };
+        // Lens: LensModel is the name the body wrote; focal length is a useful
+        // companion because zooms record the value actually used for the shot.
+        // Fuji pads the lens name to a fixed length with NUL bytes, which
+        // trim() does not strip — cut at the first NUL before trimming.
+        if(exifIFD.tags[0xA434]){
+          const raw = String(exifIFD.tags[0xA434]);
+          const clean = raw.split('\u0000')[0].trim();
+          if(clean) result.lens = clean;
+        }
+        if(exifIFD.tags[0x920A] != null) result.focalLength = exifIFD.tags[0x920A];
         const ls = exifIFD.tags[0x9208];
         if(ls != null && LIGHT_SOURCE[ls]) result.whiteBalance = LIGHT_SOURCE[ls];
         else if(exifIFD.tags[0xA403] != null) result.whiteBalance = exifIFD.tags[0xA403] === 0 ? 'Auto' : 'Manual';
@@ -1174,7 +1199,7 @@
   const fields = {
     maker: el('fMaker'), model: el('fModel'),
     fnum: el('fFnum'), ss: el('fSS'), iso: el('fISO'),
-    date: el('fDate'), wb: el('fWb'), photoBy: el('fPhotoBy')
+    date: el('fDate'), wb: el('fWb'), lens: el('fLens'), photoBy: el('fPhotoBy')
   };
 
   // ---------- File loading ----------
@@ -1206,7 +1231,7 @@
         url: '',
         img: null,
         loadError: false,
-        fields: { maker:'', model:'', fnum:'', ss:'', iso:'', date:'', wb:'', photoBy:'' },
+        fields: { maker:'', model:'', lens:'', fnum:'', ss:'', iso:'', date:'', wb:'', photoBy:'' },
         recipe: null,
         showRecipe: true,
         mode: 'white',
@@ -1215,7 +1240,8 @@
         shootingOverlayAnchor: 'bottom-left',
         recipeOverlayAnchor: 'bottom-left',
         aspectRatio: '4:5',
-        infoEnabled: true
+        infoEnabled: true,
+        showLens: true
       };
       items.push(item);
       renderThumbs();
@@ -1262,6 +1288,7 @@
             item.fields.iso = exif.iso != null ? String(exif.iso) : '';
             item.fields.date = fmtDate(exif.dateTimeOriginal);
             item.fields.wb = exif.whiteBalance || '';
+            item.fields.lens = exif.lens || (exif.focalLength ? exif.focalLength + 'mm' : '');
             item.recipe = exif.recipe || null;
             if(items[curIndex] === item) syncFormFromItem(item);
             draw();
@@ -1433,8 +1460,10 @@
     fields.iso.value = item.fields.iso;
     fields.date.value = item.fields.date;
     fields.wb.value = item.fields.wb || '';
+    fields.lens.value = item.fields.lens || '';
     fields.photoBy.value = item.fields.photoBy;
     el('infoEnabled').checked = item.infoEnabled;
+    el('showLens').checked = item.showLens !== false;
     document.querySelectorAll('.mode-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === item.mode);
     });
@@ -1548,8 +1577,14 @@
       const item = items[curIndex];
       item.fields[key] = input.value;
       updateLCD(item.fields);
-      draw();
+      requestDraw();
     });
+  });
+
+  el('showLens').addEventListener('change', (e) => {
+    if(curIndex < 0) return;
+    items[curIndex].showLens = e.target.checked;
+    draw();
   });
 
   el('infoEnabled').addEventListener('change', (e) => {
@@ -1749,7 +1784,9 @@
   // independent of where that block ends up being drawn.
   function buildShootingLines(item, theme, position){
     if(!item.infoEnabled) return [];
-    const f = item.fields;
+    // The lens line is optional: some users want the body and exposure only.
+    const f = Object.assign({}, item.fields);
+    if(item.showLens === false) f.lens = '';
 
     if(position === 'left' || position === 'right'){
       const lines = [];
@@ -1759,6 +1796,7 @@
       if(f.fnum) lines.push({text:'f/' + f.fnum, weight:300, size:0.0115, color:theme.muted});
       if(f.ss)   lines.push({text:f.ss + 's', weight:300, size:0.0115, color:theme.muted});
       if(f.iso)  lines.push({text:'ISO ' + f.iso, weight:300, size:0.0115, color:theme.muted});
+      if(f.lens) lines.push({text:f.lens, weight:300, size:0.0115, color:theme.muted});
       if(f.wb)   lines.push({text:'WB ' + f.wb, weight:300, size:0.0115, color:theme.muted});
       if(f.date) lines.push({text:f.date, weight:300, size:0.0115, color:theme.muted});
 
@@ -1770,6 +1808,7 @@
     const parts = [];
     const titleParts = [f.maker, f.model].filter(Boolean).join(' ');
     if(titleParts) parts.push(titleParts);
+    if(f.lens) parts.push(f.lens);
     if(f.fnum) parts.push('f/' + f.fnum);
     if(f.ss) parts.push(f.ss + 's');
     if(f.iso) parts.push('ISO ' + f.iso);
@@ -1820,12 +1859,26 @@
   // Letter-spacing support. Canvas has no reliable cross-browser
   // letterSpacing property, so headings are drawn glyph by glyph.
   // `line.ls` is spacing expressed as a fraction of the font size.
+  // Laying out one frame asks for ~780 text measurements, and measureText
+  // forces the browser to shape the string every time. The same string is
+  // measured repeatedly while fitting and wrapping, so results are memoised.
+  // Cleared once webfonts finish loading, since metrics change then.
+  const measureCache = new Map();
+  function clearMeasureCache(){ measureCache.clear(); }
+
   function measureLineWidth(ctx, text, weight, px, lsFrac){
+    const key = weight + '|' + px + '|' + (lsFrac || 0) + '|' + text;
+    const hit = measureCache.get(key);
+    if(hit !== undefined) return hit;
     ctx.font = `${weight} ${px}px ${MONO}`;
-    const base = ctx.measureText(text).width;
-    if(!lsFrac) return base;
-    const n = Array.from(text).length;
-    return base + lsFrac*px*Math.max(0, n-1);
+    let w = ctx.measureText(text).width;
+    if(lsFrac){
+      const n = Array.from(text).length;
+      w += lsFrac*px*Math.max(0, n-1);
+    }
+    if(measureCache.size > 4000) measureCache.clear();
+    measureCache.set(key, w);
+    return w;
   }
 
   function drawLine(ctx, line, x, y, align){
@@ -1893,21 +1946,48 @@
     if(measureLineWidth(ctx, l.text, l.weight, targetPx, l.ls) <= maxTextWidth) return [l];
     const parts = l.text.split(/\s+·\s+/).map(s => s.trim()).filter(Boolean);
     if(parts.length < 2) return [l];
-    const rows = [];
-    let cur = [];
-    for(const p of parts){
-      const trial = cur.concat([p]).join(SUMMARY_SEP);
-      if(cur.length && measureLineWidth(ctx, trial, l.weight, targetPx, l.ls) > maxTextWidth){
-        rows.push(cur.join(SUMMARY_SEP));
-        cur = [p];
-      } else {
-        cur.push(p);
+
+    // Pack greedily up to a given width and report the rows produced.
+    const packTo = (limit) => {
+      const rows = [];
+      let cur = [];
+      for(const p of parts){
+        const trial = cur.concat([p]).join(SUMMARY_SEP);
+        if(cur.length && measureLineWidth(ctx, trial, l.weight, targetPx, l.ls) > limit){
+          rows.push(cur); cur = [p];
+        } else {
+          cur.push(p);
+        }
       }
+      if(cur.length) rows.push(cur);
+      return rows;
+    };
+
+    // Filling each row to the brim leaves a stub last line ("CC Strong ·
+    // CC Blue Weak" beside a row four times its length). Find the row count
+    // first, then bisect for the narrowest width that still fits in that many
+    // rows — the result is rows of near-equal length.
+    const rowCount = packTo(maxTextWidth).length;
+    let lo = 0, hi = maxTextWidth;
+    for(const p of parts){
+      lo = Math.max(lo, measureLineWidth(ctx, p, l.weight, targetPx, l.ls));
     }
-    if(cur.length) rows.push(cur.join(SUMMARY_SEP));
-    // the accent marker belongs to the first row only
-    return rows.map((t,i) => Object.assign({}, l, { text:t, accent: i===0 ? l.accent : null }));
+    for(let i = 0; i < 24 && hi - lo > 1; i++){
+      const mid = (lo + hi) / 2;
+      if(packTo(mid).length <= rowCount) hi = mid; else lo = mid;
+    }
+    const rows = packTo(hi).map(r => r.join(SUMMARY_SEP));
+
+    // Marked as one group so every row ends up at the same font size.
+    const gid = 'w' + (++wrapGroupSeq);
+    return rows.map((t,i) => Object.assign({}, l, {
+      text: t,
+      accent: i === 0 ? l.accent : null,
+      wrapGroup: gid
+    }));
   }
+
+  let wrapGroupSeq = 0;
 
   function layoutBlock(ctx, rawLines, W, maxTextWidth, capAxisLength, pad, orientation, capFraction){
     orientation = orientation || 'horizontal';
@@ -1927,6 +2007,19 @@
       const fontPx = fitFontSize(ctx, l.text, l.weight, basePx, maxTextWidth, l.ls);
       return { ...l, basePx, fontPx };
     });
+
+    // Rows split from one sentence must read as one sentence: fit each row,
+    // then bring the whole group down to the smallest of those sizes so the
+    // second line never renders larger than the first.
+    const groupMin = {};
+    lines.forEach(l => {
+      if(!l.wrapGroup) return;
+      groupMin[l.wrapGroup] = groupMin[l.wrapGroup] == null
+        ? l.fontPx : Math.min(groupMin[l.wrapGroup], l.fontPx);
+    });
+    lines = lines.map(l => l.wrapGroup
+      ? { ...l, fontPx: groupMin[l.wrapGroup], basePx: groupMin[l.wrapGroup] }
+      : l);
     let heights = lines.map(l => Math.round(l.basePx*1.45));
     let total = heights.reduce((a,b) => a+b, 0) + lineGap*Math.max(0, lines.length-1);
     let maxWidth = measureMaxWidth(ctx, lines);
@@ -2315,6 +2408,18 @@
     drawMakerCredit(targetCtx, W, H, theme, pureOverlay, photoRect);
   }
 
+  // Typing in a field fired a full canvas redraw per keystroke. Requests are
+  // now coalesced into the next animation frame, so a burst of input paints
+  // once instead of once per character.
+  let drawPending = false;
+  function requestDraw(){
+    if(drawPending) return;
+    drawPending = true;
+    const run = () => { drawPending = false; draw(); };
+    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+    else setTimeout(run, 16);
+  }
+
   function draw(){
     if(curIndex < 0){ return; }
     placeholder.style.display = 'none';
@@ -2338,7 +2443,7 @@
 
   // wait for webfonts before first paint so measurements/text look right
   if(document.fonts && document.fonts.ready){
-    document.fonts.ready.then(() => { if(curIndex >= 0) draw(); });
+    document.fonts.ready.then(() => { clearMeasureCache(); if(curIndex >= 0) draw(); });
   }
 
   // ---------- Output format ----------
