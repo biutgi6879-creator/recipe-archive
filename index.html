@@ -17,6 +17,13 @@
 
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230E1013'/%3E%3Crect x='7' y='7' width='18' height='14' fill='none' stroke='%23C8C2B6' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='25' r='1.6' fill='%23C8C2B6'/%3E%3C/svg%3E" />
 
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Recipe Archive" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="format-detection" content="telephone=no" />
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet"
@@ -48,6 +55,14 @@
            ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
            'DejaVu Sans Mono', 'Liberation Mono', 'D2Coding', 'Courier New', monospace;
 
+    /* iOS reports 100vh as the height WITHOUT the address bar, so full-height
+       panes overflow. dvh follows the visible area; vh is the fallback. */
+    --vh:100vh;
+    --safe-t:env(safe-area-inset-top, 0px);
+    --safe-b:env(safe-area-inset-bottom, 0px);
+    --safe-l:env(safe-area-inset-left, 0px);
+    --safe-r:env(safe-area-inset-right, 0px);
+
     --r:3px;
     --pad:18px;
   }
@@ -72,7 +87,16 @@
   }
 
   *{box-sizing:border-box;}
+  /* A class that sets `display` outranks the [hidden] attribute, which is how
+     the crop panel stayed visible with no photo loaded. Make hidden win. */
+  [hidden]{display:none !important;}
   html,body{margin:0;padding:0;}
+  @supports (height: 100dvh){ :root{ --vh:100dvh; } }
+  body{
+    padding-left:var(--safe-l);padding-right:var(--safe-r);
+    -webkit-text-size-adjust:100%;      /* stop iOS enlarging text on rotate */
+    overscroll-behavior-y:none;         /* no rubber-band over the app chrome */
+  }
   body{
     background:var(--bg);
     color:var(--ink);
@@ -80,7 +104,7 @@
     font-weight:300;
     font-size:13px;
     -webkit-font-smoothing:antialiased;
-    min-height:100vh;
+    min-height:var(--vh);
   }
   ::selection{background:var(--accent);color:var(--on-ink);}
 
@@ -148,12 +172,12 @@
     display:grid;
     grid-template-columns:236px minmax(0,1fr) 328px;
     align-items:stretch;
-    min-height:calc(100vh - 52px);
+    min-height:calc(var(--vh) - 52px);
   }
   .rail{
     padding:20px var(--pad) 28px;
     position:sticky;top:0;
-    max-height:100vh;
+    max-height:var(--vh);
     overflow-y:auto;
     scrollbar-width:thin;
   }
@@ -163,6 +187,104 @@
     main{grid-template-columns:1fr;}
     .rail{position:static;max-height:none;}
     .rail.left,.rail.right{border:none;border-top:1px solid var(--hairline);}
+  }
+
+  /* ---------- Phones ---------- */
+  @media (max-width:720px){
+    /* Preview first, then the controls: on a phone the photo is the point,
+       and the file list underneath is only revisited between shots. */
+    main{display:flex;flex-direction:column;}
+    .preview{order:1;min-height:auto;padding:16px 12px 20px;}
+    .rail.right{order:2;}
+    .rail.left{order:3;}
+    .rail{padding:18px 16px 24px;}
+
+    /* The preview no longer competes with a full-height viewport unit, so it
+       can simply take the room it needs. */
+    #canvas{max-height:56vh;max-height:56dvh;}
+
+    /* Touch targets: 24-26px controls are hard to hit accurately. Everything
+       tappable goes to at least 44px, the platform minimum. */
+    .ratio-btn,.pos-btn,.recipe-pos-btn,.format-btn{
+      min-height:44px;padding:11px 14px;font-size:12.5px;
+    }
+    .mode-btn{min-height:44px;font-size:12.5px;}
+    .nav button{width:44px;height:44px;font-size:16px;}
+    .nav{gap:20px;font-size:12px;}
+    .convert-btn{padding:16px;font-size:12.5px;}
+    .field input{font-size:16px;padding:10px 2px;}   /* 16px stops iOS zooming on focus */
+    .thumb{padding:12px 2px;}
+    .thumb img,.thumb-empty{width:44px;height:44px;}
+    .thumb .name{font-size:12.5px;}
+    .thumb .rm{
+      min-width:44px;min-height:44px;font-size:16px;padding:0;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .toggle-row,.apply-all{min-height:44px;}
+    .toggle-row input,.apply-all input{width:20px;height:20px;}
+    .toggle-row{font-size:12.5px;}
+    .apply-all{font-size:11.5px;}
+    .eyebrow{font-size:10.5px;margin-bottom:14px;}
+    .dropzone{padding:32px 12px;}
+    .langs button{padding:10px 8px;font-size:11px;}
+
+    /* Bigger grab handles — a 20px corner is fiddly with a fingertip. */
+    .crop-box .nw,.crop-box .ne,.crop-box .sw,.crop-box .se{width:32px;height:32px;}
+    .crop-box .n,.crop-box .s{width:52px;margin-left:-26px;}
+    .crop-box .w,.crop-box .e{height:52px;margin-top:-26px;}
+    /* Wider invisible grab zone around the thin edge bars. */
+    .crop-box .n::after,.crop-box .s::after,
+    .crop-box .w::after,.crop-box .e::after{inset:-18px;}
+
+    /* The range thumb is 16px by default — too small to drag accurately. */
+    .tilt-row{gap:14px;min-height:44px;}
+    .tilt-row input[type=range]{height:28px;background:transparent;}
+    .tilt-row input[type=range]::-webkit-slider-runnable-track{
+      height:3px;background:var(--hairline-2);border-radius:2px;
+    }
+    .tilt-row input[type=range]::-moz-range-track{
+      height:3px;background:var(--hairline-2);border-radius:2px;
+    }
+    .tilt-row input[type=range]::-webkit-slider-thumb{
+      width:28px;height:28px;margin-top:-13px;
+    }
+    .tilt-row input[type=range]::-moz-range-thumb{width:28px;height:28px;}
+    .tilt-val{font-size:13px;min-width:52px;}
+    .rail-tab{padding:14px 4px 15px;font-size:11.5px;}
+    .crop-actions .ratio-btn{min-height:44px;}
+
+    header{height:auto;padding:10px clamp(12px,3vw,20px);
+           padding-top:calc(10px + var(--safe-t));}
+    header .head-right{gap:10px;}
+
+    /* Export is the end of every session but sat at the bottom of a long
+       panel. Pin it so it is always one tap away, clear of the home bar. */
+    .convert-btn#convertBtn{
+      position:sticky;bottom:calc(10px + var(--safe-b));z-index:5;
+      box-shadow:0 6px 20px rgba(0,0,0,0.45);
+    }
+    .share-btn{position:sticky;bottom:calc(62px + var(--safe-b));z-index:5;}
+
+    /* The thumbnail list is its own scroller inside a page that also
+       scrolls — awkward on touch. Let the page handle it. */
+    .thumbs{max-height:none;overflow:visible;}
+
+    footer{padding-bottom:calc(18px + var(--safe-b));}
+  }
+
+  /* Landscape phones have very little height: a 56vh preview plus the panel
+     leaves nothing usable, so the preview shrinks and the columns come back. */
+  @media (max-width:900px) and (orientation:landscape) and (max-height:520px){
+    main{display:grid;grid-template-columns:minmax(0,1fr) 300px;}
+    .preview{order:0;padding:10px;}
+    .rail.right{order:0;}
+    .rail.left{grid-column:1 / -1;}
+    #canvas{max-height:calc(var(--vh) - 90px);}
+  }
+
+  @media (max-width:400px){
+    .ratio-grid{gap:5px;}
+    .ratio-btn,.pos-btn,.recipe-pos-btn,.format-btn{padding:11px 10px;font-size:12px;}
   }
 
   /* section divider inside a rail */
@@ -238,7 +360,7 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:18px;padding:28px clamp(14px,3vw,40px);
     background:var(--well);
-    min-height:calc(100vh - 52px);
+    min-height:calc(var(--vh) - 52px);
   }
   /* Shrink-wraps the canvas so the registration marks hug the actual
      frame, whatever ratio it is. */
@@ -264,13 +386,115 @@
     display:block;background:var(--surface);
     width:auto;height:auto;
     max-width:min(100%, 980px);
-    max-height:calc(100vh - 190px);
+    max-height:calc(var(--vh) - 190px);
   }
+  /* With no photo loaded the preview doubles as a drop target, so uploading
+     never requires scrolling down to the file list. */
   .placeholder{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;
     color:var(--muted-2);font-size:11px;text-align:center;padding:20px;
-    line-height:1.9;letter-spacing:0.04em;pointer-events:none;
+    line-height:1.9;letter-spacing:0.04em;
+    cursor:pointer;
+    border:1px dashed var(--hairline-2);border-radius:var(--r);
+    transition:border-color .18s, background .18s, color .18s;
   }
+  .placeholder:hover,.placeholder.drag{
+    border-color:var(--accent);
+    background:color-mix(in srgb, var(--accent) 6%, transparent);
+    color:var(--muted);
+  }
+  .placeholder .ph-plus{font-size:22px;line-height:1;letter-spacing:0.1em;}
+  /* Once a frame is drawn the overlay must not swallow clicks. */
+  .placeholder[hidden]{display:none;}
+
+  /* The crop stage sits directly on top of the preview canvas, so the user
+     crops what they are actually looking at rather than a separate copy. */
+  .crop-stage{
+    position:absolute;inset:0;
+    touch-action:none;user-select:none;cursor:crosshair;
+  }
+  .crop-box{
+    position:absolute;display:none;
+    border:1px solid rgba(255,255,255,0.95);
+    box-shadow:0 0 0 4000px rgba(0,0,0,0.55);
+    cursor:move;
+  }
+  /* rule-of-thirds guides */
+  .crop-box::before,.crop-box::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+  }
+  .crop-box::before{
+    background:
+      linear-gradient(to right, transparent calc(33.333% - 0.5px), rgba(255,255,255,0.35) calc(33.333% - 0.5px), rgba(255,255,255,0.35) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px)),
+      linear-gradient(to right, transparent calc(66.666% - 0.5px), rgba(255,255,255,0.35) calc(66.666% - 0.5px), rgba(255,255,255,0.35) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px));
+  }
+  .crop-box::after{
+    background:
+      linear-gradient(to bottom, transparent calc(33.333% - 0.5px), rgba(255,255,255,0.35) calc(33.333% - 0.5px), rgba(255,255,255,0.35) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px)),
+      linear-gradient(to bottom, transparent calc(66.666% - 0.5px), rgba(255,255,255,0.35) calc(66.666% - 0.5px), rgba(255,255,255,0.35) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px));
+  }
+  .crop-box .ch{
+    position:absolute;border:2px solid #fff;background:transparent;
+  }
+  .crop-box .nw,.crop-box .ne,.crop-box .sw,.crop-box .se{width:20px;height:20px;}
+  .crop-box .nw{top:-2px;left:-2px;border-right:none;border-bottom:none;cursor:nwse-resize;}
+  .crop-box .ne{top:-2px;right:-2px;border-left:none;border-bottom:none;cursor:nesw-resize;}
+  .crop-box .sw{bottom:-2px;left:-2px;border-right:none;border-top:none;cursor:nesw-resize;}
+  .crop-box .se{bottom:-2px;right:-2px;border-left:none;border-top:none;cursor:nwse-resize;}
+  /* Edge handles: drag one side at a time, which is what you want when
+     trimming a single margin rather than reshaping from a corner. */
+  .crop-box .n,.crop-box .s{
+    left:50%;width:36px;height:0;margin-left:-18px;
+    border-left:none;border-right:none;cursor:ns-resize;
+  }
+  .crop-box .w,.crop-box .e{
+    top:50%;height:36px;width:0;margin-top:-18px;
+    border-top:none;border-bottom:none;cursor:ew-resize;
+  }
+  .crop-box .n{top:-2px;border-bottom:none;}
+  .crop-box .s{bottom:-2px;border-top:none;}
+  .crop-box .w{left:-2px;border-right:none;}
+  .crop-box .e{right:-2px;border-left:none;}
+  /* Invisible padding so a fingertip can grab the thin edge bars. */
+  .crop-box .n::after,.crop-box .s::after,.crop-box .w::after,.crop-box .e::after{
+    content:"";position:absolute;inset:-12px;
+  }
+  .rail-tabs{
+    display:flex;gap:0;margin:-2px 0 20px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .rail-tab{
+    flex:1;background:none;border:none;cursor:pointer;
+    font-family:var(--mono);font-weight:400;font-size:10.5px;
+    letter-spacing:0.16em;text-transform:uppercase;
+    color:var(--muted-2);padding:10px 4px 12px;
+    border-bottom:1px solid transparent;margin-bottom:-1px;
+    transition:color .15s,border-color .15s;
+  }
+  .rail-tab:hover{color:var(--muted);}
+  .rail-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .rail-tab:disabled{opacity:.35;cursor:default;}
+
+  .tilt-row{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
+  .tilt-row input[type=range]{
+    flex:1;appearance:none;-webkit-appearance:none;height:2px;
+    background:var(--hairline-2);border-radius:2px;outline:none;
+  }
+  .tilt-row input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--accent);cursor:pointer;
+  }
+  .tilt-row input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border:none;border-radius:50%;
+    background:var(--accent);cursor:pointer;
+  }
+  .tilt-val{
+    font-size:11.5px;color:var(--ink);min-width:44px;text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  .crop-actions{display:flex;gap:6px;margin-top:8px;}
+  .crop-actions .ratio-btn{flex:1;}
 
   .nav{
     display:flex;align-items:center;gap:16px;
@@ -426,7 +650,8 @@
 
   dialog#privacyDialog{
     max-width:640px;width:calc(100% - 32px);
-    max-height:82vh;overflow-y:auto;
+    max-height:min(82vh, calc(var(--vh) - 2*var(--safe-t) - 40px));overflow-y:auto;
+    margin-bottom:var(--safe-b);
     background:var(--surface);color:var(--ink);
     border:1px solid var(--hairline-2);border-radius:var(--r);
     padding:clamp(20px,4vw,32px);
@@ -492,10 +717,21 @@
 
   <!-- CENTER: preview -->
   <section class="preview">
-    <div class="canvas-wrap">
+    <div class="canvas-wrap" id="canvasWrap">
       <span class="c2"></span><span class="c3"></span>
       <canvas id="canvas" width="1440" height="1800"></canvas>
-      <div class="placeholder" id="placeholder" data-i18n-html="placeholder">사진을 불러오면<br>여기에 프레임이 나타납니다</div>
+      <div class="placeholder" id="placeholder">
+        <span class="ph-plus">+</span>
+        <span data-i18n-html="placeholderTap">사진을 불러오면<br>여기에 프레임이 나타납니다</span>
+      </div>
+      <div class="crop-stage" id="cropStage" hidden>
+        <div class="crop-box" id="cropBox">
+          <span class="ch nw"></span><span class="ch ne"></span>
+          <span class="ch sw"></span><span class="ch se"></span>
+          <span class="ch n"></span><span class="ch s"></span>
+          <span class="ch w"></span><span class="ch e"></span>
+        </div>
+      </div>
     </div>
     <div class="nav">
       <button id="prevBtn">‹</button>
@@ -506,6 +742,52 @@
 
   <!-- RIGHT: fields -->
   <aside class="rail right">
+    <!-- Tabs sit at the very top so switching to cropping never requires a
+         scroll: the whole panel below swaps in place. -->
+    <div class="rail-tabs" role="tablist">
+      <button class="rail-tab active" id="tabFrame" role="tab" aria-selected="true"
+              data-i18n="tabFrame">촬영 정보</button>
+      <button class="rail-tab" id="tabCrop" role="tab" aria-selected="false"
+              data-i18n="tabCrop">자르기</button>
+    </div>
+
+    <div id="cropRail" hidden>
+      <p class="subnote" style="text-align:left;margin:2px 0 16px;" data-i18n="cropHint">미리보기에서 영역을 끌어 옮기고 모서리로 크기를 조절하세요.</p>
+
+      <p class="eyebrow" data-i18n="cropRatio">자르기 비율</p>
+      <div class="ratio-grid" id="sourceRatioRow">
+        <button class="ratio-btn active" data-sratio="original" data-i18n="ratioFree">자유</button>
+        <button class="ratio-btn" data-sratio="1:1">1:1</button>
+        <button class="ratio-btn" data-sratio="4:5">4:5</button>
+        <button class="ratio-btn" data-sratio="5:4">5:4</button>
+        <button class="ratio-btn" data-sratio="3:4">3:4</button>
+        <button class="ratio-btn" data-sratio="4:3">4:3</button>
+        <button class="ratio-btn" data-sratio="3:2">3:2</button>
+        <button class="ratio-btn" data-sratio="2:3">2:3</button>
+        <button class="ratio-btn" data-sratio="9:16">9:16</button>
+        <button class="ratio-btn" data-sratio="16:9">16:9</button>
+      </div>
+
+      <div class="sect"></div>
+      <p class="eyebrow" data-i18n="straighten">기울기</p>
+      <div class="tilt-row">
+        <input type="range" id="tiltRange" min="-15" max="15" step="0.1" value="0" />
+        <span class="tilt-val" id="tiltVal">0.0°</span>
+      </div>
+      <div class="crop-actions">
+        <button class="ratio-btn" id="tiltMinus">−1°</button>
+        <button class="ratio-btn" id="tiltZero" data-i18n="tiltReset">0°</button>
+        <button class="ratio-btn" id="tiltPlus">+1°</button>
+      </div>
+
+      <div class="sect"></div>
+      <button class="convert-btn" id="cropApply" data-i18n="cropApply">적용</button>
+      <div class="crop-actions">
+        <button class="ratio-btn" id="cropReset" data-i18n="cropReset">초기화</button>
+      </div>
+    </div>
+
+    <div id="mainRail">
     <p class="eyebrow" data-i18n="cameraInfo">Camera info</p>
 
     <div class="toggle-row">
@@ -617,6 +899,14 @@
       <button class="shooting-anchor-btn" data-anchor="top-left" data-i18n="anc_top-left">Top L</button>
       <button class="shooting-anchor-btn" data-anchor="top-right" data-i18n="anc_top-right">Top R</button>
     </div>
+    <div class="apply-all" id="centerOverlayRow" hidden>
+      <input type="checkbox" id="overlayCentered" />
+      <label for="overlayCentered"><span data-i18n="overlayCentered">오버레이 중앙 정렬 (촬영 정보 위 · 레시피 아래)</span></label>
+    </div>
+    <div class="ratio-grid" id="centredStyleRow" hidden>
+      <button class="format-btn active" data-cstyle="dim" data-i18n="cstyle_dim">배경 어둡게</button>
+      <button class="format-btn" data-cstyle="outline" data-i18n="cstyle_outline">글자 윤곽선</button>
+    </div>
     <div class="apply-all">
       <input type="checkbox" id="applyShootingPosAll" />
       <label for="applyShootingPosAll"><span data-i18n="applyPosAll">이 위치를 모든 이미지에 적용</span></label>
@@ -625,11 +915,14 @@
     <div class="sect"></div>
     <p class="eyebrow" id="ratioHeading" data-i18n="outputRatio">Output ratio</p>
     <div class="ratio-grid" id="ratioGrid">
+      <button class="ratio-btn" data-ratio="original" data-i18n="ratioOriginal">원본</button>
       <button class="ratio-btn" data-ratio="1:1">1:1</button>
       <button class="ratio-btn active" data-ratio="4:5">4:5</button>
       <button class="ratio-btn" data-ratio="5:4">5:4</button>
       <button class="ratio-btn" data-ratio="3:4">3:4</button>
       <button class="ratio-btn" data-ratio="4:3">4:3</button>
+      <button class="ratio-btn" data-ratio="3:2">3:2</button>
+      <button class="ratio-btn" data-ratio="2:3">2:3</button>
       <button class="ratio-btn" data-ratio="9:16">9:16</button>
       <button class="ratio-btn" data-ratio="16:9">16:9</button>
     </div>
@@ -660,6 +953,7 @@
 
     <button class="convert-btn" id="convertBtn" data-i18n="export" disabled>Export</button>
     <button class="convert-btn share-btn" id="shareBtn" hidden>사진 앱에 저장</button>
+    </div>
     <div class="subnote" id="outputNote">선택한 비율에 맞춰 PNG로 저장됩니다 (긴 변 기준 3840px)</div>
   </aside>
 </main>
@@ -729,6 +1023,22 @@
       whiteBalance:'화이트 밸런스',
       lens:'렌즈',
       showLens:'프레임에 렌즈 표시',
+      overlayCentered:'오버레이 중앙 정렬 (촬영 정보 위 · 레시피 아래)',
+      cstyle_dim:'배경 어둡게',
+      cstyle_outline:'글자 윤곽선',
+      sourceRatio:'원본 사진 비율',
+      ratioOriginal:'원본',
+      cropApply:'적용',
+      cropReset:'초기화',
+      cropTitle:'사진 자르기',
+      cropHint:'미리보기에서 영역을 끌어 옮기고 모서리로 크기를 조절하세요.',
+      cropRatio:'자르기 비율',
+      ratioFree:'자유',
+      straighten:'기울기',
+      tiltReset:'0°',
+      tabFrame:'촬영 정보',
+      tabCrop:'자르기',
+      placeholderTap:'사진을 여기에 놓거나<br>눌러서 불러오세요',
       privacyTitle:'개인정보처리방침', close:'닫기',
       trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS, REALA는 FUJIFILM Corporation의 상표입니다. Recipe Archive는 후지필름과 제휴 관계가 없으며, 사진에 기록된 촬영 정보를 표시하기 위해 해당 명칭을 사용합니다.',
       rk:{filmSim:'필름 시뮬레이션', dynamicRange:'다이나믹 레인지', highlight:'하이라이트', shadow:'섀도우',
@@ -785,6 +1095,22 @@
       whiteBalance:'White balance',
       lens:'Lens',
       showLens:'Show lens on the frame',
+      overlayCentered:'Centre the overlay (camera info above, recipe below)',
+      cstyle_dim:'Dim the photo',
+      cstyle_outline:'Outline the text',
+      sourceRatio:'Source ratio',
+      ratioOriginal:'Original',
+      cropApply:'Apply',
+      cropReset:'Reset',
+      cropTitle:'Crop photo',
+      cropHint:'Drag the box on the preview, and resize it from the corners.',
+      cropRatio:'Crop ratio',
+      ratioFree:'Free',
+      straighten:'Straighten',
+      tiltReset:'0°',
+      tabFrame:'Frame',
+      tabCrop:'Crop',
+      placeholderTap:'Drop a photo here<br>or tap to choose one',
       privacyTitle:'Privacy policy', close:'Close',
       trademark:'FUJIFILM, Velvia, ASTIA, PROVIA, Classic Chrome, ETERNA, ACROS and REALA are trademarks of FUJIFILM Corporation. Recipe Archive is not affiliated with or endorsed by FUJIFILM, and uses these names only to describe the settings recorded in your photo.',
       rk:{filmSim:'Film Sim', dynamicRange:'Dynamic Range', highlight:'Highlight', shadow:'Shadow',
@@ -841,6 +1167,22 @@
       whiteBalance:'ホワイトバランス',
       lens:'レンズ',
       showLens:'フレームにレンズを表示',
+      overlayCentered:'オーバーレイを中央揃え（撮影情報を上・レシピを下）',
+      cstyle_dim:'背景を暗く',
+      cstyle_outline:'文字に縁取り',
+      sourceRatio:'元画像の比率',
+      ratioOriginal:'元のまま',
+      cropApply:'適用',
+      cropReset:'リセット',
+      cropTitle:'写真をトリミング',
+      cropHint:'プレビュー上で範囲をドラッグし、角でサイズを調整してください。',
+      cropRatio:'トリミング比率',
+      ratioFree:'自由',
+      straighten:'傾き',
+      tiltReset:'0°',
+      tabFrame:'撮影情報',
+      tabCrop:'トリミング',
+      placeholderTap:'ここに写真をドロップ<br>またはタップして選択',
       privacyTitle:'プライバシーポリシー', close:'閉じる',
       trademark:'FUJIFILM、Velvia、ASTIA、PROVIA、Classic Chrome、ETERNA、ACROS、REALAはFUJIFILM Corporationの商標です。Recipe Archiveは富士フイルムと提携関係にはなく、写真に記録された撮影設定を表示する目的でこれらの名称を使用しています。',
       rk:{filmSim:'フィルムシミュレーション', dynamicRange:'ダイナミックレンジ', highlight:'ハイライト', shadow:'シャドウ',
@@ -965,6 +1307,7 @@
 
   function parseExif(buffer){
     try{
+      if(!buffer || buffer.byteLength < 4) return null;   // too small to be a JPEG
       const view = new DataView(buffer);
       if(view.getUint16(0) !== 0xFFD8) return null; // not JPEG
       let offset = 2, app1Offset = null;
@@ -1237,6 +1580,11 @@
         mode: 'white',
         shootingPosition: 'bottom',
         recipePosition: 'bottom',
+        sourceRatio: 'original',
+        crop: null,
+        rotate: 0,
+        overlayCentered: false,
+        overlayCentredStyle: 'dim',
         shootingOverlayAnchor: 'bottom-left',
         recipeOverlayAnchor: 'bottom-left',
         aspectRatio: '4:5',
@@ -1309,6 +1657,19 @@
     handleFiles(e.dataTransfer.files);
   });
 
+  // The empty preview is the largest thing on screen and, on a phone, the only
+  // thing above the fold — so it opens the picker too.
+  const ph = el('placeholder');
+  if(ph){
+    ph.addEventListener('click', () => el('fileInput').click());
+    ph.addEventListener('dragover', (e) => { e.preventDefault(); ph.classList.add('drag'); });
+    ph.addEventListener('dragleave', () => ph.classList.remove('drag'));
+    ph.addEventListener('drop', (e) => {
+      e.preventDefault(); ph.classList.remove('drag');
+      handleFiles(e.dataTransfer.files);
+    });
+  }
+
   // ---------- Thumbnails / navigation ----------
   function renderThumbs(){
     const wrap = el('thumbs');
@@ -1330,6 +1691,10 @@
   }
 
   function removeItem(i){
+    // Leaving crop mode open with no photo left showed the selection box over
+    // an empty canvas. selectItem() closed it only when another photo
+    // remained, so deleting the last one slipped through.
+    if(cropActive) closeCropEditor();
     items.splice(i,1);
     if(items.length === 0){ curIndex = -1; }
     else { curIndex = Math.max(0, Math.min(curIndex, items.length-1)); }
@@ -1341,6 +1706,7 @@
 
   function selectItem(i){
     if(i < 0 || i >= items.length) return;
+    if(cropActive) closeCropEditor();
     curIndex = i;
     renderThumbs();
     syncFormFromItem(items[i]);
@@ -1373,9 +1739,57 @@
   function updateAnchorVisibility(item){
     const sr = el('shootingAnchorRow');
     const rr = el('recipeAnchorRow');
-    if(sr) sr.hidden = !(item && item.shootingPosition === 'overlay');
-    if(rr) rr.hidden = !(item && item.recipePosition === 'overlay');
+    const cr = el('centerOverlayRow');
+    const anyOverlay = !!item && (item.shootingPosition === 'overlay' || item.recipePosition === 'overlay');
+    const centred = !!item && !!item.overlayCentered;
+    if(cr) cr.hidden = !anyOverlay;
+    const csr = el('centredStyleRow');
+    if(csr) csr.hidden = !(anyOverlay && centred);
+    // Centred mode places both blocks itself, so the corner pickers would be
+    // dead controls — hide them while it is on.
+    if(sr) sr.hidden = !(item && item.shootingPosition === 'overlay') || centred;
+    if(rr) rr.hidden = !(item && item.recipePosition === 'overlay') || centred;
   }
+
+  document.querySelectorAll('.format-btn[data-cstyle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.format-btn[data-cstyle]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const st = btn.dataset.cstyle;
+      if(el('applyShootingPosAll').checked) items.forEach(it => it.overlayCentredStyle = st);
+      else items[curIndex].overlayCentredStyle = st;
+      draw();
+    });
+  });
+
+  document.querySelectorAll('.ratio-btn[data-sratio]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(curIndex < 0) return;
+      document.querySelectorAll('.ratio-btn[data-sratio]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const key = btn.dataset.sratio;
+      const item = items[curIndex];
+      item.sourceRatio = key;
+      if(cropState){
+        // Only the selection changes shape — the photo underneath is untouched
+        // until the crop is applied.
+        reseatCropBox(item, true);
+      } else {
+        item.crop = cropToRatio(item, key);
+        draw();
+      }
+    });
+  });
+
+  el('overlayCentered').addEventListener('change', (e) => {
+    if(curIndex < 0) return;
+    const on = e.target.checked;
+    if(el('applyShootingPosAll').checked) items.forEach(it => it.overlayCentered = on);
+    else items[curIndex].overlayCentered = on;
+    updateAnchorVisibility(items[curIndex]);
+    draw();
+  });
 
   document.querySelectorAll('.shooting-anchor-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1419,7 +1833,7 @@
   // down to ~20% of the canvas. Rather than distort the geometry to hide
   // that, flag the ratios that actually suit the loaded photo.
   function updateRatioFit(){
-    const btns = document.querySelectorAll('.ratio-btn');
+    const btns = document.querySelectorAll('.ratio-btn[data-ratio]');
     if(!btns.length) return;
     const item = curIndex >= 0 ? items[curIndex] : null;
     if(!item || !item.img){
@@ -1445,10 +1859,11 @@
     const applyAll = el('applyRatioAll');
     const pure = curIndex >= 0 && usesPureOverlay(items[curIndex]);
     updateRatioFit();
-    if(grid) grid.classList.toggle('disabled', pure);
-    if(applyAll) applyAll.disabled = pure;
+    // Overlay honours the output ratio now, so the picker stays live.
+    if(grid) grid.classList.remove('disabled');
+    if(applyAll) applyAll.disabled = false;
     if(note){
-      note.textContent = t(pure ? 'noteOverlay' : 'noteRatio');
+      note.textContent = t('noteRatio');
     }
   }
 
@@ -1479,8 +1894,16 @@
     document.querySelectorAll('.recipe-anchor-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.anchor === item.recipeOverlayAnchor);
     });
+    document.querySelectorAll('.ratio-btn[data-sratio]').forEach(b => {
+      b.classList.toggle('active', b.dataset.sratio === (item.sourceRatio || 'original'));
+    });
+    const tc = el('tabCrop'); if(tc) tc.disabled = !item.img;
+    el('overlayCentered').checked = !!item.overlayCentered;
+    document.querySelectorAll('.format-btn[data-cstyle]').forEach(b => {
+      b.classList.toggle('active', b.dataset.cstyle === (item.overlayCentredStyle || 'dim'));
+    });
     updateAnchorVisibility(item);
-    document.querySelectorAll('.ratio-btn').forEach(b => {
+    document.querySelectorAll('.ratio-btn[data-ratio]').forEach(b => {
       b.classList.toggle('active', b.dataset.ratio === item.aspectRatio);
     });
     updateLCD(item.fields);
@@ -1646,10 +2069,10 @@
     });
   });
 
-  document.querySelectorAll('.ratio-btn').forEach(btn => {
+  document.querySelectorAll('.ratio-btn[data-ratio]').forEach(btn => {
     btn.addEventListener('click', () => {
       if(curIndex < 0) return;
-      document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.ratio-btn[data-ratio]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const ratio = btn.dataset.ratio;
       if(el('applyRatioAll').checked){
@@ -1706,7 +2129,8 @@
   }
 
   const RATIOS = {
-    '1:1':[1,1], '4:5':[4,5], '5:4':[5,4], '3:4':[3,4], '4:3':[4,3], '9:16':[9,16], '16:9':[16,9]
+    '1:1':[1,1], '4:5':[4,5], '5:4':[5,4], '3:4':[3,4], '4:3':[4,3],
+    '3:2':[3,2], '2:3':[2,3], '9:16':[9,16], '16:9':[16,9]
   };
   // 4K-class output: 3840px on the long edge, matching UHD video (3840x2160
   // landscape, 2160x3840 for Reels/Shorts). Every size in the renderer is a
@@ -1742,33 +2166,171 @@
     return positions.length > 0 && positions.every(p => p === 'overlay');
   }
 
+  // ---------- Source region (crop) ----------
+  // Everything downstream draws the photo through this one function, so a
+  // crop, a chosen source ratio and the untouched original are all the same
+  // thing to the renderer: a rectangle of the source image.
+  function sourceRect(item){
+    if(!item || !item.img) return null;
+    const iw = item.img.width, ih = item.img.height;
+    const cr = item.crop;
+    if(cr && cr.w > 0 && cr.h > 0){
+      return {
+        sx: Math.max(0, Math.min(iw, cr.x)),
+        sy: Math.max(0, Math.min(ih, cr.y)),
+        sw: Math.max(1, Math.min(iw - cr.x, cr.w)),
+        sh: Math.max(1, Math.min(ih - cr.y, cr.h))
+      };
+    }
+    return { sx:0, sy:0, sw:iw, sh:ih };
+  }
+
+  // ---------- Straightening ----------
+  // Rotating the source and then cropping it cannot be expressed as a plain
+  // sub-rectangle of the original, so a rotated photo is baked into an
+  // offscreen canvas once and every later step treats that as the source.
+  // The result is cached per item and only rebuilt when the angle changes.
+  function rotatedSource(item){
+    const angle = item && item.rotate ? item.rotate : 0;
+    if(!item || !item.img) return null;
+    if(!angle) return item.img;
+    if(item._rotCache && item._rotAngle === angle) return item._rotCache;
+
+    const iw = item.img.width, ih = item.img.height;
+    const rad = angle * Math.PI / 180;
+    const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+    // Bounding box of the rotated image, then the largest upright rectangle
+    // that still contains only real pixels — no transparent corners.
+    const bw = Math.round(iw*cos + ih*sin);
+    const bh = Math.round(iw*sin + ih*cos);
+    let cv;
+    try{
+      cv = document.createElement('canvas');
+      cv.width = bw; cv.height = bh;
+      const cx = cv.getContext('2d');
+      cx.translate(bw/2, bh/2);
+      cx.rotate(rad);
+      cx.drawImage(item.img, -iw/2, -ih/2);
+    }catch(e){ return item.img; }
+
+    item._rotCache = cv;
+    item._rotAngle = angle;
+    item._rotInner = largestInnerRect(iw, ih, rad, bw, bh);
+    return cv;
+  }
+
+  // Largest axis-aligned rectangle of the original aspect that fits inside the
+  // rotated image — used to trim away the empty wedges at the corners.
+  function largestInnerRect(w, h, rad, bw, bh){
+    const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+    if(w <= 0 || h <= 0) return { x:0, y:0, w:bw, h:bh };
+    const longer = Math.max(w, h), shorter = Math.min(w, h);
+    let rw, rh;
+    if(shorter <= 2*sin*cos*longer || Math.abs(sin - cos) < 1e-10){
+      const half = 0.5*shorter;
+      if(sin > cos){ rw = half/sin; rh = half/cos; }
+      else { rw = half/cos; rh = half/sin; }
+      if(w < h){ const t = rw; rw = rh; rh = t; }
+    } else {
+      const c2 = cos*cos - sin*sin;
+      rw = (w*cos - h*sin)/c2;
+      rh = (h*cos - w*sin)/c2;
+    }
+    rw = Math.max(1, Math.min(rw, bw));
+    rh = Math.max(1, Math.min(rh, bh));
+    return { x:(bw-rw)/2, y:(bh-rh)/2, w:rw, h:rh };
+  }
+
+  // The image the rest of the renderer should draw from, plus the rectangle
+  // of it that is actually in use.
+  // While the crop editor is open the preview must show the WHOLE photo with
+  // the selection drawn over it. Rendering the already-cropped result meant
+  // picking a ratio permanently reshaped the photo and the area outside the
+  // crop could never be recovered.
+  let cropPreview = false;
+
+  function effectiveSource(item){
+    if(!item || !item.img) return null;
+    const img = rotatedSource(item);
+    if(cropPreview){
+      if(!item.rotate) return { img, rect:{ sx:0, sy:0, sw:img.width, sh:img.height } };
+      const inner = item._rotInner || { x:0, y:0, w:img.width, h:img.height };
+      return { img, rect:{ sx:inner.x, sy:inner.y, sw:inner.w, sh:inner.h } };
+    }
+    if(!item.rotate){
+      return { img, rect: sourceRect(item) };
+    }
+    const inner = item._rotInner || { x:0, y:0, w:img.width, h:img.height };
+    const cr = item.crop;
+    if(cr && cr.w > 0 && cr.h > 0){
+      return { img, rect: { sx:cr.x, sy:cr.y, sw:cr.w, sh:cr.h } };
+    }
+    return { img, rect: { sx:inner.x, sy:inner.y, sw:inner.w, sh:inner.h } };
+  }
+
+  function sourceAspect(item){
+    const e = effectiveSource(item);
+    return e && e.rect ? e.rect.sw / e.rect.sh : 1;
+  }
+
+  // Centre-crop to a target ratio — used when a ratio is chosen rather than
+  // dragged. Operates on whatever the effective source currently is.
+  function cropToRatio(item, ratioKey){
+    if(!item || !item.img) return null;
+    if(!ratioKey || ratioKey === 'original') return null;
+    const [a,b] = RATIOS[ratioKey] || [1,1];
+    const target = a/b;
+    const e = effectiveSource(item);
+    const base = item.rotate
+      ? (item._rotInner || { x:0, y:0, w:e.img.width, h:e.img.height })
+      : { x:0, y:0, w:item.img.width, h:item.img.height };
+    let sw, sh;
+    if(base.w/base.h > target){ sh = base.h; sw = base.h*target; }
+    else { sw = base.w; sh = base.w/target; }
+    return { x: base.x + (base.w-sw)/2, y: base.y + (base.h-sh)/2, w:sw, h:sh };
+  }
+
   function outputSize(item){
+    // Overlay used to be locked to the photo's own shape. It now honours the
+    // chosen output ratio like every other placement, falling back to the
+    // source shape only when "original" is selected.
     if(usesPureOverlay(item) && item.img){
+      const key = item.aspectRatio || 'original';
+      if(key !== 'original' && RATIOS[key]) return sizeForRatio(key);
       const LONG = LONG_EDGE;
-      const ir = item.img.width / item.img.height;
+      const ir = sourceAspect(item);
       if(ir >= 1) return { w:LONG, h:Math.max(1, Math.round(LONG/ir)) };
       return { w:Math.max(1, Math.round(LONG*ir)), h:LONG };
     }
-    return sizeForRatio(item.aspectRatio || '4:5');
+    const key = item.aspectRatio || '4:5';
+    if(key === 'original' && item && item.img){
+      const LONG = LONG_EDGE;
+      const ir = sourceAspect(item);
+      if(ir >= 1) return { w:LONG, h:Math.max(1, Math.round(LONG/ir)) };
+      return { w:Math.max(1, Math.round(LONG*ir)), h:LONG };
+    }
+    return sizeForRatio(key);
   }
 
-  function drawContain(ctx, img, x, y, w, h){
-    const ir = img.width / img.height;
+  function drawContain(ctx, img, x, y, w, h, src){
+    const s = src || { sx:0, sy:0, sw:img.width, sh:img.height };
+    const ir = s.sw / s.sh;
     const br = w / h;
     let dw, dh;
     if(ir > br){ dw = w; dh = w/ir; } else { dh = h; dw = h*ir; }
     const dx = x + (w-dw)/2, dy = y + (h-dh)/2;
-    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.drawImage(img, s.sx, s.sy, s.sw, s.sh, dx, dy, dw, dh);
     return { dx, dy, dw, dh };
   }
 
   // Cover/crop fit — used for the full-bleed "Overlay" info position.
-  function drawCover(ctx, img, x, y, w, h){
-    const ir = img.width / img.height;
+  function drawCover(ctx, img, x, y, w, h, src){
+    const s = src || { sx:0, sy:0, sw:img.width, sh:img.height };
+    const ir = s.sw / s.sh;
     const br = w / h;
     let sx, sy, sw, sh;
-    if(ir > br){ sh = img.height; sw = sh*br; sx = (img.width-sw)/2; sy = 0; }
-    else { sw = img.width; sh = sw/br; sx = 0; sy = (img.height-sh)/2; }
+    if(ir > br){ sh = s.sh; sw = sh*br; sx = s.sx + (s.sw-sw)/2; sy = s.sy; }
+    else { sw = s.sw; sh = sw/br; sx = s.sx; sy = s.sy + (s.sh-sh)/2; }
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   }
 
@@ -1825,7 +2387,7 @@
     const lines = [];
     const push = (text) => lines.push({text, weight:300, size:0.0115, color:theme.muted});
 
-    if(recipe.filmSim) lines.push({text:recipe.filmSim, weight:400, size:0.013, color:theme.ink, ls:0.14, heading:true, accent:filmAccent(recipe)});
+    if(recipe.filmSim) lines.push({text:recipe.filmSim, weight:400, size:0.014, color:theme.ink, ls:0.14, heading:true, accent:filmAccent(recipe)});
     if(recipe.whiteBalance || recipe.colorTemperature) push('WB ' + wbText(recipe));
     if(recipe.dynamicRange) push(recipe.dynamicRange);
     if(recipe.highlight || recipe.shadow) push(`H${recipe.highlight||'0'} / S${recipe.shadow||'0'}`);
@@ -1879,6 +2441,28 @@
     if(measureCache.size > 4000) measureCache.clear();
     measureCache.set(key, w);
     return w;
+  }
+
+  // Mirrors drawLine but strokes the glyphs instead of filling them, so the
+  // outline variant can trace text that is then filled on top.
+  function strokeLine(ctx, line, x, y, align){
+    ctx.font = `${line.weight} ${line.fontPx}px ${MONO}`;
+    const ls = line.ls ? line.ls*line.fontPx : 0;
+    if(!ls){
+      ctx.textAlign = align;
+      ctx.strokeText(line.text, x, y);
+      return;
+    }
+    const chars = Array.from(line.text);
+    let total = 0;
+    for(const ch of chars) total += ctx.measureText(ch).width;
+    total += ls*Math.max(0, chars.length-1);
+    let cx = align === 'center' ? x - total/2 : (align === 'right' ? x - total : x);
+    ctx.textAlign = 'left';
+    for(const ch of chars){
+      ctx.strokeText(ch, cx, y);
+      cx += ctx.measureText(ch).width + ls;
+    }
   }
 
   function drawLine(ctx, line, x, y, align){
@@ -2137,6 +2721,190 @@
     ctx.restore();
   }
 
+  // Overlay rendering was ~165 lines inside renderToCanvas. Split into its two
+  // modes so each reads on its own; the drawing itself is unchanged.
+  function drawCentredOverlay(targetCtx, item, theme, W, photoRect, overlayShooting, overlayRecipe){
+
+      const pad = W * 0.03;
+      const px = photoRect.dx, py = photoRect.dy;
+      const pw = photoRect.dw, ph = photoRect.dh;
+      const style = item.overlayCentredStyle === 'outline' ? 'outline' : 'dim';
+
+      if(style === 'dim'){
+        // Heavier wash: the text sits over the middle of the picture, so it
+        // needs contrast everywhere rather than only along an edge.
+        targetCtx.fillStyle = 'rgba(0,0,0,0.55)';
+        targetCtx.fillRect(px, py, pw, ph);
+      } else {
+        // Outline variant: only a whisper of shading, with the legibility
+        // coming from a stroke drawn around each glyph instead.
+        targetCtx.fillStyle = 'rgba(0,0,0,0.16)';
+        targetCtx.fillRect(px, py, pw, ph);
+      }
+
+      // Same construction as the left/right rails: every value on its own
+      // line, the first line acting as a heading with the film's signature
+      // rule beneath it.
+      const refW = Math.min(W, Math.max(pw*1.55, W*0.45));
+      const textW = pw * 0.72;
+      const blocks = [];
+      if(overlayShooting.length) blocks.push({ lines: buildShootingLines(item, theme, 'left'), anchor: 'above' });
+      if(overlayRecipe.length)   blocks.push({ lines: buildRecipeLines(item, theme, 'left'),   anchor: 'below' });
+
+      // Lay both blocks out first, then centre the PAIR on the photo. Placing
+      // each block a fixed distance from the middle left the composition
+      // lopsided whenever the two differed in height.
+      const laid = blocks.map(b => {
+        const L = layoutBlock(targetCtx, b.lines, refW, textW, ph, pad, 'horizontal', 0.42);
+        const hasHeading = L.lines.length > 1;
+        const headingGap = hasHeading ? L.lineGap*2.2 : 0;
+        return { L, hasHeading, headingGap, total: L.total + headingGap, anchor: b.anchor };
+      }).filter(b => b.L.lines.length);
+
+      const gapFromCentre = ph * 0.04;
+      const aboveTotal = laid.filter(b => b.anchor === 'above').reduce((s,b) => s+b.total, 0);
+      const belowTotal = laid.filter(b => b.anchor === 'below').reduce((s,b) => s+b.total, 0);
+      const groupTop = py + ph/2
+        - (aboveTotal + belowTotal + (aboveTotal && belowTotal ? gapFromCentre*2 : 0))/2;
+      let cursor = groupTop;
+
+      laid.forEach(b => {
+        const L = b.L;
+        const hasHeading = b.hasHeading;
+        const headingGap = b.headingGap;
+        const blockTop = cursor;
+        cursor += b.total + (aboveTotal && belowTotal ? gapFromCentre*2 : 0);
+
+        let cy = blockTop + L.heights[0]*0.68;
+        L.lines.forEach((line,i) => {
+          targetCtx.save();
+          if(style === 'outline'){
+            // strokeText centres the line on the glyph outline, so half of it
+            // eats into the letterform. At 16% of the font size the strokes
+            // read as bold blobs; 6% keeps the type's own weight intact.
+            // A soft shadow carries the rest of the separation instead.
+            targetCtx.lineWidth = Math.max(1, line.fontPx*0.06);
+            targetCtx.strokeStyle = 'rgba(0,0,0,0.72)';
+            targetCtx.lineJoin = 'round';
+            targetCtx.miterLimit = 2;
+            targetCtx.shadowColor = 'rgba(0,0,0,0.5)';
+            targetCtx.shadowBlur = line.fontPx*0.5;
+            strokeLine(targetCtx, line, px + pw/2, cy, 'center');
+            targetCtx.shadowColor = 'transparent';
+            targetCtx.shadowBlur = 0;
+          } else {
+            targetCtx.shadowColor = 'rgba(0,0,0,0.5)';
+            targetCtx.shadowBlur = line.fontPx*0.8;
+          }
+          targetCtx.fillStyle = 'rgba(255,255,255,0.96)';
+          drawLine(targetCtx, line, px + pw/2, cy, 'center');
+          targetCtx.restore();
+          cy += L.heights[i] + L.lineGap;
+
+          if(i === 0 && hasHeading){
+            const ruleY = cy - L.lineGap*1.1;
+            const accent = line.accent;
+            const ruleW = pw * (accent ? 0.075 : 0.06);
+            targetCtx.strokeStyle = accent || 'rgba(255,255,255,0.7)';
+            targetCtx.lineWidth = Math.max(1, W*(accent ? 0.0018 : 0.0012));
+            targetCtx.beginPath();
+            targetCtx.moveTo(px + pw/2 - ruleW/2, ruleY);
+            targetCtx.lineTo(px + pw/2 + ruleW/2, ruleY);
+            targetCtx.stroke();
+            cy += headingGap;
+          }
+        });
+      });
+  }
+
+  function drawCornerOverlay(targetCtx, item, W, photoRect, overlayGroups){
+
+      const pad = W * 0.03;
+      const barW = W * 0.0045;
+      const barGap = W * 0.018;
+      const px = photoRect.dx, py = photoRect.dy;
+      const pw = photoRect.dw, ph = photoRect.dh;
+      // Two captions pinned to opposite corners of the SAME edge sit on the
+      // same baseline, so each may only claim half the width (less a gutter)
+      // — otherwise both lay out at full width and collide in the middle.
+      const gutter = W * 0.03;
+      const sharesEdge = (a) => {
+        const other = a.indexOf('left') > 0
+          ? a.replace('left','right')
+          : a.replace('right','left');
+        return overlayGroups[other] && overlayGroups[other].length > 0;
+      };
+      const fullTextW = pw - pad*2 - barW - barGap;
+      const halfTextW = (pw - pad*2 - gutter)/2 - barW - barGap;
+
+      // Overlay type is sized against the PHOTO, not the canvas. Sizing it
+      // from the canvas made the caption balloon whenever the photo was
+      // letterboxed — it ranged from 1.3% to 3.6% of the photo's width
+      // across ratios. Clamped so a very narrow photo keeps legible type and
+      // a full-bleed photo (pure overlay) is unchanged.
+      const overlayRefW = Math.min(W, Math.max(pw*1.55, W*0.45));
+
+      const layouts = {};
+      Object.keys(overlayGroups).forEach(a => {
+        if(overlayGroups[a].length){
+          const w = sharesEdge(a) ? halfTextW : fullTextW;
+          layouts[a] = layoutBlock(targetCtx, overlayGroups[a], overlayRefW, Math.max(40, w), ph, pad, 'horizontal', 0.34);
+        }
+      });
+
+      // One scrim per edge, tall enough for whichever corner block on that
+      // edge is tallest — two corners on the same edge share one gradient.
+      const edgeH = (a1,a2) => Math.max(layouts[a1] ? layouts[a1].total : 0,
+                                        layouts[a2] ? layouts[a2].total : 0);
+      const topH = edgeH('top-left','top-right');
+      const botH = edgeH('bottom-left','bottom-right');
+
+      if(botH > 0){
+        const h = Math.min(ph, botH + pad*3);
+        const g = targetCtx.createLinearGradient(0, py+ph-h, 0, py+ph);
+        g.addColorStop(0,'rgba(0,0,0,0)');
+        g.addColorStop(0.35,'rgba(0,0,0,0.16)');
+        g.addColorStop(0.7,'rgba(0,0,0,0.42)');
+        g.addColorStop(1,'rgba(0,0,0,0.66)');
+        targetCtx.fillStyle = g;
+        targetCtx.fillRect(px, py+ph-h, pw, h);
+      }
+      if(topH > 0){
+        const h = Math.min(ph, topH + pad*3);
+        const g = targetCtx.createLinearGradient(0, py, 0, py+h);
+        g.addColorStop(0,'rgba(0,0,0,0.66)');
+        g.addColorStop(0.3,'rgba(0,0,0,0.42)');
+        g.addColorStop(0.65,'rgba(0,0,0,0.16)');
+        g.addColorStop(1,'rgba(0,0,0,0)');
+        targetCtx.fillStyle = g;
+        targetCtx.fillRect(px, py, pw, h);
+      }
+
+      Object.keys(layouts).forEach(a => {
+        const L = layouts[a];
+        const isTop = a.indexOf('top') === 0;
+        const isLeft = a.indexOf('left') > 0;
+        const blockTop = isTop ? py + pad : py + ph - L.total - pad;
+        const align = isLeft ? 'left' : 'right';
+        const textX = isLeft ? px + pad + barW + barGap
+                             : px + pw - pad - barW - barGap;
+        const barX  = isLeft ? px + pad : px + pw - pad - barW;
+
+        const accentLine = L.lines.find(l => l.accent);
+        targetCtx.fillStyle = accentLine ? accentLine.accent : 'rgba(255,255,255,0.55)';
+        targetCtx.fillRect(barX, blockTop - L.heights[0]*0.22, barW, L.total);
+
+        let cy = blockTop + L.heights[0]*0.68;
+        L.lines.forEach((line,i) => {
+          targetCtx.fillStyle = 'rgba(255,255,255,0.95)';
+          drawLine(targetCtx, line, textX, cy, align);
+          cy += L.heights[i] + L.lineGap;
+        });
+      });
+  }
+
+  let lastPhotoRect = null;   // last photo geometry drawn to the PREVIEW canvas
+
   function renderToCanvas(targetCtx, item, W, H){
     const theme = THEMES[item.mode] || THEMES.white;
     targetCtx.clearRect(0,0,W,H);
@@ -2153,15 +2921,20 @@
     // so the two metadata blocks can sit in different corners independently.
     const overlayGroups = { 'top-left':[], 'top-right':[], 'bottom-left':[], 'bottom-right':[] };
     const anchorOf = (a) => overlayGroups[a] ? a : 'bottom-left';
+    // Centred mode needs the two blocks kept apart — camera info sits above
+    // the middle, the recipe below it — so they are collected separately as
+    // well as by corner.
+    const overlayShooting = [], overlayRecipe = [];
     if(shootingLines.length){
       if(sides[shootingPos]) sides[shootingPos].push(...shootingLines);
-      else overlayGroups[anchorOf(item.shootingOverlayAnchor)].push(...shootingLines);
+      else { overlayGroups[anchorOf(item.shootingOverlayAnchor)].push(...shootingLines); overlayShooting.push(...shootingLines); }
     }
     if(recipeLines.length){
       if(sides[recipePos]) sides[recipePos].push(...recipeLines);
-      else overlayGroups[anchorOf(item.recipeOverlayAnchor)].push(...recipeLines);
+      else { overlayGroups[anchorOf(item.recipeOverlayAnchor)].push(...recipeLines); overlayRecipe.push(...recipeLines); }
     }
     const hasOverlay = Object.keys(overlayGroups).some(k => overlayGroups[k].length);
+    const centredOverlay = !!item.overlayCentered && hasOverlay;
 
     const pureOverlay = usesPureOverlay(item);
     // A 3% mat left the photo almost touching the frame edge on whichever
@@ -2247,7 +3020,7 @@
     // Contain the photo in what's left, then measure the group.
     let photoW = availW, photoH = availH;
     if(item.img){
-      const ir = item.img.width / item.img.height;
+      const ir = sourceAspect(item);
       if(ir > availW/availH){ photoW = availW; photoH = availW/ir; }
       else { photoH = availH; photoW = availH*ir; }
     }
@@ -2274,7 +3047,8 @@
       // ratio, so the photo fills it edge to edge with no mat and no
       // shadow (a shadow would have nothing to sit on).
       if(pureOverlay){
-        drawCover(targetCtx, item.img, 0, 0, W, H);
+        const es = effectiveSource(item);
+        drawCover(targetCtx, es.img, 0, 0, W, H, es.rect);
         photoRect = { dx:0, dy:0, dw:W, dh:H };
       } else {
         // A soft, low-opacity shadow lifts the photo off the flat mat so it
@@ -2283,7 +3057,8 @@
         targetCtx.shadowColor = item.mode === 'black' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.16)';
         targetCtx.shadowBlur = W * 0.016;
         targetCtx.shadowOffsetY = W * 0.004;
-        photoRect = drawContain(targetCtx, item.img, imgBoxX, imgBoxY, imgBoxW, imgBoxH);
+        const es = effectiveSource(item);
+        photoRect = drawContain(targetCtx, es.img, imgBoxX, imgBoxY, imgBoxW, imgBoxH, es.rect);
         targetCtx.restore();
 
         // A whisper-thin edge keeps light photos from bleeding into a
@@ -2320,92 +3095,14 @@
     // mat whenever the photo is letterboxed inside a differently-shaped
     // frame. In pure-overlay mode the photo fills the frame exactly, so
     // this is identical there and stays consistent across source ratios.
-    if(hasOverlay){
-      const pad = W * 0.03;
-      const barW = W * 0.0045;
-      const barGap = W * 0.018;
-      const px = photoRect.dx, py = photoRect.dy;
-      const pw = photoRect.dw, ph = photoRect.dh;
-      // Two captions pinned to opposite corners of the SAME edge sit on the
-      // same baseline, so each may only claim half the width (less a gutter)
-      // — otherwise both lay out at full width and collide in the middle.
-      const gutter = W * 0.03;
-      const sharesEdge = (a) => {
-        const other = a.indexOf('left') > 0
-          ? a.replace('left','right')
-          : a.replace('right','left');
-        return overlayGroups[other] && overlayGroups[other].length > 0;
-      };
-      const fullTextW = pw - pad*2 - barW - barGap;
-      const halfTextW = (pw - pad*2 - gutter)/2 - barW - barGap;
-
-      // Overlay type is sized against the PHOTO, not the canvas. Sizing it
-      // from the canvas made the caption balloon whenever the photo was
-      // letterboxed — it ranged from 1.3% to 3.6% of the photo's width
-      // across ratios. Clamped so a very narrow photo keeps legible type and
-      // a full-bleed photo (pure overlay) is unchanged.
-      const overlayRefW = Math.min(W, Math.max(pw*1.55, W*0.45));
-
-      const layouts = {};
-      Object.keys(overlayGroups).forEach(a => {
-        if(overlayGroups[a].length){
-          const w = sharesEdge(a) ? halfTextW : fullTextW;
-          layouts[a] = layoutBlock(targetCtx, overlayGroups[a], overlayRefW, Math.max(40, w), ph, pad, 'horizontal', 0.34);
-        }
-      });
-
-      // One scrim per edge, tall enough for whichever corner block on that
-      // edge is tallest — two corners on the same edge share one gradient.
-      const edgeH = (a1,a2) => Math.max(layouts[a1] ? layouts[a1].total : 0,
-                                        layouts[a2] ? layouts[a2].total : 0);
-      const topH = edgeH('top-left','top-right');
-      const botH = edgeH('bottom-left','bottom-right');
-
-      if(botH > 0){
-        const h = Math.min(ph, botH + pad*3);
-        const g = targetCtx.createLinearGradient(0, py+ph-h, 0, py+ph);
-        g.addColorStop(0,'rgba(0,0,0,0)');
-        g.addColorStop(0.35,'rgba(0,0,0,0.16)');
-        g.addColorStop(0.7,'rgba(0,0,0,0.42)');
-        g.addColorStop(1,'rgba(0,0,0,0.66)');
-        targetCtx.fillStyle = g;
-        targetCtx.fillRect(px, py+ph-h, pw, h);
-      }
-      if(topH > 0){
-        const h = Math.min(ph, topH + pad*3);
-        const g = targetCtx.createLinearGradient(0, py, 0, py+h);
-        g.addColorStop(0,'rgba(0,0,0,0.66)');
-        g.addColorStop(0.3,'rgba(0,0,0,0.42)');
-        g.addColorStop(0.65,'rgba(0,0,0,0.16)');
-        g.addColorStop(1,'rgba(0,0,0,0)');
-        targetCtx.fillStyle = g;
-        targetCtx.fillRect(px, py, pw, h);
-      }
-
-      Object.keys(layouts).forEach(a => {
-        const L = layouts[a];
-        const isTop = a.indexOf('top') === 0;
-        const isLeft = a.indexOf('left') > 0;
-        const blockTop = isTop ? py + pad : py + ph - L.total - pad;
-        const align = isLeft ? 'left' : 'right';
-        const textX = isLeft ? px + pad + barW + barGap
-                             : px + pw - pad - barW - barGap;
-        const barX  = isLeft ? px + pad : px + pw - pad - barW;
-
-        const accentLine = L.lines.find(l => l.accent);
-        targetCtx.fillStyle = accentLine ? accentLine.accent : 'rgba(255,255,255,0.55)';
-        targetCtx.fillRect(barX, blockTop - L.heights[0]*0.22, barW, L.total);
-
-        let cy = blockTop + L.heights[0]*0.68;
-        L.lines.forEach((line,i) => {
-          targetCtx.fillStyle = 'rgba(255,255,255,0.95)';
-          drawLine(targetCtx, line, textX, cy, align);
-          cy += L.heights[i] + L.lineGap;
-        });
-      });
+    if(centredOverlay){
+      drawCentredOverlay(targetCtx, item, theme, W, photoRect, overlayShooting, overlayRecipe);
+    } else if(hasOverlay){
+      drawCornerOverlay(targetCtx, item, W, photoRect, overlayGroups);
     }
 
     drawMakerCredit(targetCtx, W, H, theme, pureOverlay, photoRect);
+    if(targetCtx === ctx) lastPhotoRect = photoRect;
   }
 
   // Typing in a field fired a full canvas redraw per keystroke. Requests are
@@ -2436,6 +3133,7 @@
     const ph = Math.max(1, Math.round(h*scale));
     canvas.width = pw;
     canvas.height = ph;
+    lastPhotoRect = null;
     renderToCanvas(ctx, item, pw, ph);
     updateRatioAvailability();
     updateAccent();
@@ -2444,6 +3142,274 @@
   // wait for webfonts before first paint so measurements/text look right
   if(document.fonts && document.fonts.ready){
     document.fonts.ready.then(() => { clearMeasureCache(); if(curIndex >= 0) draw(); });
+  }
+
+  // ---------- Crop editor ----------
+  // The crop box is drawn over the live preview, so the user crops exactly
+  // what they see. Coordinates are kept in the preview's own pixels while
+  // dragging and converted to source-image pixels only on apply.
+  let cropState = null;   // {box:{x,y,w,h} in stage px, ratio:number|null, rect:photoRect in stage px}
+  let cropActive = false;
+
+  // Where the photo actually sits inside the preview canvas, in CSS pixels.
+  function previewPhotoRect(){
+    if(curIndex < 0) return null;
+    const item = items[curIndex];
+    if(!item || !item.img) return null;
+    const canvasEl = el('canvas');
+    const cw = canvasEl.clientWidth, chh = canvasEl.clientHeight;
+    if(!cw || !chh) return null;
+    const scale = cw / canvasEl.width;   // canvas px -> css px
+    const r = lastPhotoRect;
+    if(!r) return null;
+    return { x:r.dx*scale, y:r.dy*scale, w:r.dw*scale, h:r.dh*scale };
+  }
+
+  function setCropMode(on){
+    cropActive = on;
+    cropPreview = on;
+    const stage = el('cropStage');
+    const cropRail = el('cropRail');
+    const mainRail = el('mainRail');
+    if(stage) stage.hidden = !on;
+    if(cropRail) cropRail.hidden = !on;
+    if(mainRail) mainRail.hidden = on;
+    const tf = el('tabFrame'), tc = el('tabCrop');
+    if(tf){ tf.classList.toggle('active', !on); tf.setAttribute('aria-selected', String(!on)); }
+    if(tc){ tc.classList.toggle('active', on);  tc.setAttribute('aria-selected', String(on)); }
+  }
+
+  function openCropEditor(){
+    if(curIndex < 0) return;
+    const item = items[curIndex];
+    if(!item || !item.img) return;
+    setCropMode(true);
+    // On a phone the controls sit below the preview, so tapping the Crop tab
+    // can leave the photo — and the selection box — off screen.
+    try{
+      const wrap = el('canvasWrap');
+      if(wrap && window.matchMedia && window.matchMedia('(max-width:720px)').matches){
+        wrap.scrollIntoView({ behavior:'smooth', block:'center' });
+      }
+    }catch(e){}
+    const tr = el('tiltRange'), tv = el('tiltVal');
+    if(tr) tr.value = String(item.rotate || 0);
+    if(tv) tv.textContent = (item.rotate || 0).toFixed(1) + '°';
+    // Photo geometry is only known after a paint, so start the box next frame.
+    requestAnimationFrame(() => {
+      const rect = previewPhotoRect();
+      if(!rect){ setCropMode(false); return; }
+      const full = effectiveSource(item).rect;   // whole photo (crop ignored)
+      // Seat the box over whatever is currently cropped, so reopening the
+      // editor resumes where the user left off instead of resetting.
+      const cur = item.crop && item.crop.w > 0
+        ? { sx:item.crop.x, sy:item.crop.y, sw:item.crop.w, sh:item.crop.h }
+        : full;
+      const kx = rect.w / full.sw, ky = rect.h / full.sh;
+      cropState = {
+        rect,
+        box: {
+          x: rect.x + (cur.sx - full.sx)*kx,
+          y: rect.y + (cur.sy - full.sy)*ky,
+          w: cur.sw*kx,
+          h: cur.sh*ky
+        },
+        ratio: cropRatioValue(item),
+        baseSrc: full
+      };
+      cropState.box = clampBox(cropState.box, rect, cropState.ratio);
+      applyCropBox();
+    });
+  }
+
+  function closeCropEditor(){
+    setCropMode(false);
+    const box = el('cropBox');
+    if(box) box.style.display = 'none';
+    cropState = null;
+  }
+
+  // The crop box is locked to the chosen SOURCE ratio; "original" leaves it free.
+  function cropRatioValue(item){
+    const key = item.sourceRatio || 'original';
+    if(key === 'original' || !RATIOS[key]) return null;
+    const [a,b] = RATIOS[key];
+    return a/b;
+  }
+
+  function applyCropBox(){
+    const box = el('cropBox');
+    if(!cropState || !box) return;
+    const b = cropState.box;
+    box.style.display = 'block';
+    box.style.left = b.x + 'px';
+    box.style.top = b.y + 'px';
+    box.style.width = b.w + 'px';
+    box.style.height = b.h + 'px';
+  }
+
+  // Constrain the box to the photo's bounds, honouring a locked ratio.
+  function clampBox(b, rect, ratio){
+    b.w = Math.max(24, Math.min(b.w, rect.w));
+    b.h = Math.max(24, Math.min(b.h, rect.h));
+    if(ratio){
+      if(b.w / b.h > ratio) b.w = b.h * ratio; else b.h = b.w / ratio;
+      if(b.w > rect.w){ b.w = rect.w; b.h = b.w / ratio; }
+      if(b.h > rect.h){ b.h = rect.h; b.w = b.h * ratio; }
+    }
+    b.x = Math.max(rect.x, Math.min(b.x, rect.x + rect.w - b.w));
+    b.y = Math.max(rect.y, Math.min(b.y, rect.y + rect.h - b.h));
+    return b;
+  }
+
+  // Largest box of a given ratio that fits inside rect, centred on (cx,cy)
+  // when supplied. Was written out three times with small variations.
+  function boxForRatio(rect, ratio, cx, cy){
+    let bw = rect.w, bh = rect.h;
+    if(ratio){
+      if(rect.w/rect.h > ratio){ bh = rect.h; bw = bh*ratio; }
+      else { bw = rect.w; bh = bw/ratio; }
+    }
+    const x = (cx == null ? rect.x + (rect.w-bw)/2 : cx - bw/2);
+    const y = (cy == null ? rect.y + (rect.h-bh)/2 : cy - bh/2);
+    return { x, y, w:bw, h:bh };
+  }
+
+  // Re-place the selection after the photo underneath has been redrawn
+  // (rotation change, ratio change). Keeps the box centred on the photo.
+  function reseatCropBox(item, keepCentre){
+    const rect = previewPhotoRect();
+    if(!rect || !cropState) return;
+    const full = effectiveSource(item).rect;
+    const cx = keepCentre ? cropState.box.x + cropState.box.w/2 : null;
+    const cy = keepCentre ? cropState.box.y + cropState.box.h/2 : null;
+    cropState.rect = rect;
+    cropState.baseSrc = full;
+    cropState.ratio = cropRatioValue(item);
+    cropState.box = clampBox(boxForRatio(rect, cropState.ratio, cx, cy), rect, cropState.ratio);
+    applyCropBox();
+  }
+
+  function initCropEditor(){
+    const stage = el('cropStage');
+    if(!stage) return;
+    let mode = null, startX = 0, startY = 0, orig = null;
+
+    const pointFrom = (e) => {
+      const t = e.touches ? e.touches[0] : e;
+      const r = stage.getBoundingClientRect();
+      return { x: t.clientX - r.left, y: t.clientY - r.top };
+    };
+
+    const begin = (e) => {
+      if(!cropState) return;
+      const cls = e.target.classList;
+      // Corners first: 'n' would otherwise match the 'nw' element too.
+      const handle = cls && cls.contains('ch')
+        ? ['nw','ne','sw','se','n','s','w','e'].find(k => cls.contains(k))
+        : null;
+      mode = handle || 'move';
+      const p = pointFrom(e);
+      startX = p.x; startY = p.y;
+      orig = Object.assign({}, cropState.box);
+      e.preventDefault();
+    };
+
+    const move = (e) => {
+      if(!mode || !cropState) return;
+      const p = pointFrom(e);
+      const dx = p.x - startX, dy = p.y - startY;
+      const b = Object.assign({}, orig);
+      if(mode === 'move'){
+        b.x = orig.x + dx; b.y = orig.y + dy;
+      } else {
+        if(mode.indexOf('w') >= 0){ b.x = orig.x + dx; b.w = orig.w - dx; }
+        if(mode.indexOf('e') >= 0){ b.w = orig.w + dx; }
+        if(mode.indexOf('n') >= 0){ b.y = orig.y + dy; b.h = orig.h - dy; }
+        if(mode.indexOf('s') >= 0){ b.h = orig.h + dy; }
+        if(b.w < 24) b.w = 24;
+        if(b.h < 24) b.h = 24;
+      }
+      cropState.box = clampBox(b, cropState.rect, cropState.ratio);
+      applyCropBox();
+      e.preventDefault();
+    };
+
+    const end = () => { mode = null; };
+
+    stage.addEventListener('mousedown', begin);
+    stage.addEventListener('touchstart', begin, { passive:false });
+    const doc = document;
+    doc.addEventListener('mousemove', move);
+    doc.addEventListener('touchmove', move, { passive:false });
+    doc.addEventListener('mouseup', end);
+    doc.addEventListener('touchend', end);
+
+    function commitCrop(){
+      if(curIndex < 0 || !cropState){ closeCropEditor(); return; }
+      const item = items[curIndex];
+      const { rect, box, baseSrc } = cropState;
+      // Box is relative to the visible photo, which itself shows baseSrc —
+      // so the new crop is a sub-rectangle of the region already in view.
+      const fx = (box.x - rect.x) / rect.w;
+      const fy = (box.y - rect.y) / rect.h;
+      const fw = box.w / rect.w;
+      const fh = box.h / rect.h;
+      item.crop = {
+        x: baseSrc.sx + fx*baseSrc.sw,
+        y: baseSrc.sy + fy*baseSrc.sh,
+        w: fw*baseSrc.sw,
+        h: fh*baseSrc.sh
+      };
+      closeCropEditor();
+      draw();
+    }
+
+    el('cropApply').addEventListener('click', commitCrop);
+
+    el('cropReset').addEventListener('click', () => {
+      if(curIndex < 0) return;
+      const it2 = items[curIndex];
+      it2.crop = null;
+      it2.sourceRatio = 'original';
+      it2.rotate = 0;
+      it2._rotCache = null;
+      draw();
+      requestAnimationFrame(() => { if(cropActive) openCropEditor(); });
+    });
+
+    // ── Straighten ──
+    const tilt = el('tiltRange'), tiltVal = el('tiltVal');
+    function setTilt(deg, redraw){
+      if(curIndex < 0) return;
+      const item = items[curIndex];
+      const v = Math.max(-15, Math.min(15, Math.round(deg*10)/10));
+      item.rotate = v;
+      // The old crop was expressed in the previous rotation's coordinates, so
+      // it no longer means anything.
+      item.crop = null;
+      if(tilt) tilt.value = String(v);
+      if(tiltVal) tiltVal.textContent = v.toFixed(1) + '°';
+      if(redraw !== false){
+        draw();
+        // Re-seat the crop box over the freshly drawn photo.
+        requestAnimationFrame(() => reseatCropBox(items[curIndex], false));
+      }
+    }
+    if(tilt) tilt.addEventListener('input', () => setTilt(parseFloat(tilt.value)));
+    el('tiltMinus').addEventListener('click', () => setTilt((items[curIndex] ? items[curIndex].rotate||0 : 0) - 1));
+    el('tiltPlus').addEventListener('click', () => setTilt((items[curIndex] ? items[curIndex].rotate||0 : 0) + 1));
+    el('tiltZero').addEventListener('click', () => setTilt(0));
+
+    // Switching tabs is what enters and leaves crop mode now; the crop box is
+    // kept, so moving back and forth does not lose the pending selection.
+    el('tabCrop').addEventListener('click', () => {
+      if(curIndex < 0 || !items[curIndex] || !items[curIndex].img) return;
+      if(!cropActive) openCropEditor();
+    });
+    el('tabFrame').addEventListener('click', () => {
+      if(cropActive) commitCrop();
+    });
   }
 
   // ---------- Output format ----------
@@ -2469,11 +3435,11 @@
   }
 
   function initFormatButtons(){
-    document.querySelectorAll('.format-btn').forEach(btn => {
+    document.querySelectorAll('.format-btn[data-format]').forEach(btn => {
       const key = btn.dataset.format;
       if(!formatSupported(key)){ btn.hidden = true; return; }
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.format-btn[data-format]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         outputFormat = key;
         updateFormatNote();
@@ -2665,11 +3631,47 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+  const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+  function blobToBase64(blob){
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onloadend = () => res(String(r.result).split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function saveNative(outputs){
+    const { Filesystem } = window.Capacitor.Plugins;
+    const saved = [];
+    for(const o of outputs){
+      const data = await blobToBase64(o.blob);
+      const w = await Filesystem.writeFile({ path:o.name, data, directory:'CACHE' });
+      saved.push(w.uri);
+    }
+    return saved;
+  }
+
   async function deliver(outputs){
     const shareBtn = el('shareBtn');
     if(shareBtn) shareBtn.hidden = true;
     pendingShare = null;
     if(!outputs.length) return;
+
+    if(isNative()){
+      try{
+        const uris = await saveNative(outputs);
+        const { Share } = window.Capacitor.Plugins;
+        await Share.share({ title: outputs.length>1 ? outputs.length+' frames' : outputs[0].name, files: uris });
+        showNotice('');
+        return;
+      }catch(e){
+        if(e && /cancel/i.test(e.message||'')) return;
+        showNotice(t('shareFailed'));
+        return;
+      }
+    }
 
     let files = [];
     try{
@@ -2747,6 +3749,7 @@
     b.addEventListener('click', () => applyLang(b.dataset.lang));
   });
   initFormatButtons();
+  initCropEditor();
   applyLang(detectLang());
 
   updateCounts();
